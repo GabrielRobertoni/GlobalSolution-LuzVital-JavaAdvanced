@@ -1,0 +1,38 @@
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+### Segredos: nunca versionar ###
+.env
+*.env.local
+application-local.yml
+
+### IntelliJ IDEA ###
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+### Eclipse / NetBeans / VS Code ###
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+nbproject/private/
+nbbuild/
+dist/
+nbdist/
+.nb-gradle/
+build/
+.vscode/
+
+### Sistema ###
+.DS_Store
+Thumbs.db
+*.log
+
+### Arquivo de identificação da entrega (vai no .zip, não no repositório) ###
+ENTREGA-*.txt

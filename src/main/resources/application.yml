@@ -1,0 +1,114 @@
+# =====================================================================
+#  Luz Vital API (Java) - configuração padrão: PostgreSQL + RabbitMQ
+#  Nenhuma credencial real fica no repositório: tudo vem de variáveis
+#  de ambiente (veja .env.example). Os valores padrão abaixo são só
+#  para rodar localmente com o docker-compose.yml.
+# =====================================================================
+server:
+  port: ${PORT:8080}
+
+spring:
+  application:
+    name: luz-vital-api
+
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:luzvital}
+    username: ${DB_USER:luzvital}
+    password: ${DB_PASSWORD:luzvital}
+    hikari:
+      maximum-pool-size: 5
+      minimum-idle: 1
+
+  jpa:
+    open-in-view: false
+    hibernate:
+      # update cria/ajusta as tabelas com os mesmos nomes do script Oracle da equipe de banco
+      ddl-auto: ${JPA_DDL_AUTO:update}
+    properties:
+      hibernate:
+        default_batch_fetch_size: 50
+
+  data:
+    web:
+      pageable:
+        max-page-size: 50
+
+  # Mensagens do Bean Validation sempre em português
+  web:
+    locale: pt_BR
+    locale-resolver: fixed
+
+  servlet:
+    multipart:
+      max-file-size: 5MB
+      max-request-size: 6MB
+
+  # RabbitMQ local/Docker ou na nuvem (CloudAMQP): RABBITMQ_ADDRESSES=amqps://usuario:senha@host/vhost
+  rabbitmq:
+    addresses: ${RABBITMQ_ADDRESSES:amqp://guest:guest@localhost:5672}
+    listener:
+      simple:
+        default-requeue-rejected: false   # depois das tentativas, a mensagem vai para a fila .dlq
+        retry:
+          enabled: true
+          max-attempts: 3
+          initial-interval: 2s
+          multiplier: 2
+
+  # Spring AI: qualquer provedor compatível com a API da OpenAI.
+  # Padrão: Google Gemini (chave gratuita em https://aistudio.google.com/apikey).
+  ai:
+    model:
+      chat: openai
+      embedding: none
+      image: none
+      audio:
+        speech: none
+        transcription: none
+      moderation: none
+    openai:
+      api-key: ${IA_API_KEY:nao-configurada}
+      base-url: ${IA_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}
+      max-retries: 1
+      timeout: 60s
+      chat:
+        model: ${IA_MODELO:gemini-3.5-flash}
+        temperature: 0.3
+
+luzvital:
+  jwt:
+    # Chave HS256 compartilhada com a API .NET (32+ caracteres). Vazia = chave aleatória a cada subida.
+    segredo: ${JWT_SECRET:}
+    expiracao: ${JWT_EXPIRACAO:8h}
+    emissor: luz-vital-api
+    audiencia: luz-vital-app
+  cors:
+    origens: ${CORS_ORIGENS:*}
+  ia:
+    habilitada: ${IA_HABILITADA:true}
+    chave: ${IA_API_KEY:}
+    modelo: ${IA_MODELO:gemini-3.5-flash}
+  notificacao:
+    raio-km: 5.0
+  seed:
+    habilitado: ${SEED_HABILITADO:true}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: never
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    tags-sorter: alpha
+    operations-sorter: method
+    persist-authorization: true
+
+logging:
+  level:
+    br.com.fiap.luzvital: INFO
