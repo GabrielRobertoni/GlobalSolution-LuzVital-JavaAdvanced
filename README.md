@@ -6,7 +6,7 @@ O Luz Vital cadastra quem depende de aparelhos elétricos para viver (ventilador
 
 | | |
 |---|---|
-| Repositório | `<link do repositório>` |
+| Repositório | https://github.com/GabrielRobertoni/GlobalSolution-LuzVital-JavaAdvanced |
 | Vídeo pitch | `<link do vídeo>` |
 | Deploy | `<link do deploy, se houver>` |
 | **Requisito 5 (arquitetura distribuída)** | **Opção A: RabbitMQ**, com evento publicado e consumido de forma assíncrona |
