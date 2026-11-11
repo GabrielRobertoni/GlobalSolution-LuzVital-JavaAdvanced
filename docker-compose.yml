@@ -1,0 +1,44 @@
+# Sobe tudo com um comando:  docker compose up --build
+#   API ........ http://localhost:8080/swagger-ui.html
+#   RabbitMQ ... http://localhost:15672 (guest / guest)
+# Variáveis opcionais (JWT_SECRET, IA_API_KEY...) são lidas do arquivo .env (copie de .env.example).
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: luzvital
+      POSTGRES_USER: luzvital
+      POSTGRES_PASSWORD: luzvital
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U luzvital -d luzvital"]
+      interval: 5s
+      retries: 20
+
+  rabbitmq:
+    image: rabbitmq:4-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      retries: 20
+
+  api:
+    build: .
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    environment:
+      DB_HOST: postgres
+      RABBITMQ_ADDRESSES: amqp://guest:guest@rabbitmq:5672
+      JWT_SECRET: ${JWT_SECRET:-}
+      IA_API_KEY: ${IA_API_KEY:-}
+      IA_BASE_URL: ${IA_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
+      IA_MODELO: ${IA_MODELO:-gemini-3.5-flash}
