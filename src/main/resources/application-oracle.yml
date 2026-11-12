@@ -1,8 +1,6 @@
-# Perfil "oracle": usa o mesmo Oracle da disciplina de banco (tabelas do script da equipe).
+# Perfil "oracle": usa o banco Oracle da disciplina de banco (tabelas T_GS_* do GSBancoOracle.sql).
+# Antes de subir: rode GSBancoOracle.sql e depois scripts/oracle-complemento-api-java.sql (4 tabelas de apoio).
 # Ative com SPRING_PROFILES_ACTIVE=oracle e informe ORACLE_URL, DB_USER e DB_PASSWORD.
-# As colunas e tabelas novas da API (USUARIO, ATENDIMENTO, NOTIFICACAO_PONTO, PLANO_CONTINGENCIA,
-# TOKEN_REVOGADO, PACIENTE.ID_USUARIO, coordenadas e OCORRENCIA.DATA_BATERIA etc.) estão em
-# scripts/oracle-complemento-api-java.sql.
 spring:
   datasource:
     url: ${ORACLE_URL:jdbc:oracle:thin:@oracle.fiap.com.br:1521:ORCL}
@@ -11,4 +9,5 @@ spring:
     driver-class-name: oracle.jdbc.OracleDriver
   jpa:
     hibernate:
-      ddl-auto: ${JPA_DDL_AUTO:update}
+      # O esquema é do script da equipe de banco: a API não cria nem altera tabelas no Oracle
+      ddl-auto: none

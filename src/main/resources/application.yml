@@ -88,8 +88,6 @@ luzvital:
     habilitada: ${IA_HABILITADA:true}
     chave: ${IA_API_KEY:}
     modelo: ${IA_MODELO:gemini-3.5-flash}
-  notificacao:
-    raio-km: 5.0
   seed:
     habilitado: ${SEED_HABILITADO:true}
 
