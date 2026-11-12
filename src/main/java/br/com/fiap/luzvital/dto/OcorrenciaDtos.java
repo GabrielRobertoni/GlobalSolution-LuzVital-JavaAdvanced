@@ -1,6 +1,5 @@
 package br.com.fiap.luzvital.dto;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
@@ -10,7 +9,7 @@ import br.com.fiap.luzvital.domain.Equipamento;
 import br.com.fiap.luzvital.domain.NotificacaoPonto;
 import br.com.fiap.luzvital.domain.StatusOcorrencia;
 import br.com.fiap.luzvital.domain.TipoAparelho;
-import br.com.fiap.luzvital.domain.TipoAtendimento;
+import br.com.fiap.luzvital.domain.TipoSocorro;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
@@ -29,13 +28,13 @@ public final class OcorrenciaDtos {
 
     @Schema(description = "Botão \"Estou sem luz\"")
     public record AberturaOcorrenciaRequest(
-            @Schema(example = "1") @NotNull @Positive Long pacienteId,
+            @Schema(example = "2") @NotNull @Positive Long pacienteId,
             @Schema(example = "Queda de energia no bairro desde 21h") @Size(max = 250) String observacao) {
     }
 
     @Schema(description = "Bateria que resta agora no aparelho de suporte à vida, informada pelo cuidador ou pelo gestor")
     public record AtualizacaoBateriaRequest(
-            @Schema(example = "180") @NotNull @PositiveOrZero @Max(99999) Integer minutosRestantes) {
+            @Schema(example = "45") @NotNull @PositiveOrZero @Max(99999) Integer minutosRestantes) {
     }
 
     public record EncerramentoRequest(
@@ -47,9 +46,10 @@ public final class OcorrenciaDtos {
             @Schema(example = "A energia voltou") @NotBlank @Size(max = 200) String motivo) {
     }
 
+    @Schema(description = "Socorro registrado pelo gestor (T_GS_ATENDIMENTO)")
     public record AtendimentoRequest(
-            @Schema(example = "GERADOR") @NotNull TipoAtendimento tipo,
-            @Schema(example = "Gerador do Condomínio Edifício Paulista a caminho") @NotBlank @Size(max = 500)
+            @Schema(example = "GERADOR_MOVEL") @NotNull TipoSocorro tipoSocorro,
+            @Schema(example = "Despachado gerador portátil de 3kW da Defesa Civil.") @NotBlank @Size(max = 1000)
             String descricao,
             @Schema(example = "1", description = "Opcional: ponto de energia acionado") @Positive Long pontoEnergiaId) {
     }
@@ -62,24 +62,22 @@ public final class OcorrenciaDtos {
         }
     }
 
-    public record AtendimentoResposta(Long id, Long ocorrenciaId, TipoAtendimento tipo, String descricao,
-                                      Long pontoEnergiaId, String pontoEnergiaNome, Long gestorId, String gestorNome,
-                                      LocalDateTime dataRegistro) {
+    public record AtendimentoResposta(Long id, Long ocorrenciaId, TipoSocorro tipoSocorro, String descricao,
+                                      Long pontoEnergiaId, String pontoEnergiaNome, LocalDateTime dataAtendimento) {
         public static AtendimentoResposta de(Atendimento a) {
-            return new AtendimentoResposta(a.getId(), a.getOcorrencia().getId(), a.getTipo(), a.getDescricao(),
+            return new AtendimentoResposta(a.getId(), a.getOcorrencia().getId(), a.getTipoSocorro(), a.getDescricao(),
                     a.getPontoEnergia() == null ? null : a.getPontoEnergia().getId(),
                     a.getPontoEnergia() == null ? null : a.getPontoEnergia().getNomeLocal(),
-                    a.getGestor().getId(), a.getGestor().getNome(), a.getDataRegistro());
+                    a.getDataAtendimento());
         }
     }
 
     public record NotificacaoResposta(Long id, Long pontoEnergiaId, String nomeLocal, String telefone, String bairro,
-                                      boolean possuiGerador, BigDecimal distanciaKm, String criterio, String mensagem,
-                                      LocalDateTime dataEnvio) {
+                                      boolean possuiGerador, String mensagem, LocalDateTime dataEnvio) {
         public static NotificacaoResposta de(NotificacaoPonto n) {
             var p = n.getPontoEnergia();
             return new NotificacaoResposta(n.getId(), p.getId(), p.getNomeLocal(), p.getTelefone(), p.getBairro(),
-                    p.isPossuiGerador(), n.getDistanciaKm(), n.getCriterio(), n.getMensagem(), n.getDataEnvio());
+                    p.isPossuiGerador(), n.getMensagem(), n.getDataEnvio());
         }
     }
 
@@ -91,8 +89,8 @@ public final class OcorrenciaDtos {
             StatusOcorrencia status,
             LocalDateTime dataInicio,
             LocalDateTime dataFim,
-            @Schema(description = "Minutos de bateria informados em dataBateria") Integer bateriaInformadaMin,
-            LocalDateTime dataBateria,
+            @Schema(description = "Minutos de bateria informados (qt_bateria_min)") Integer bateriaInformadaMin,
+            @Schema(description = "Quando a bateria foi informada") LocalDateTime dataBateria,
             @Schema(description = "Contagem regressiva calculada agora") int minutosRestantes,
             LocalDateTime previsaoEsgotamento,
             Integer prioridadeScore,
@@ -112,7 +110,7 @@ public final class OcorrenciaDtos {
             String pacienteNome,
             String bairro,
             String cidade,
-            String contatoCuidador,
+            String telefone,
             StatusOcorrencia status,
             LocalDateTime dataInicio,
             int minutosRestantes,

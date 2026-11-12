@@ -125,7 +125,7 @@ public class OcorrenciaController {
     public ResponseEntity<AtendimentoResposta> registrarAtendimento(@PathVariable Long id,
                                                                     @RequestBody @Valid AtendimentoRequest req) {
         return ResponseEntity.status(HttpStatus.CREATED)
-                .body(ocorrenciaService.registrarAtendimento(id, req, usuarioAtual.obter()));
+                .body(ocorrenciaService.registrarAtendimento(id, req));
     }
 
     @GetMapping("/{id}/atendimentos")

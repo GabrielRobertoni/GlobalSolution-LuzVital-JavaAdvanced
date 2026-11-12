@@ -70,6 +70,6 @@ public class PontoEnergiaService {
 
     private void aplicar(PontoEnergia p, PontoEnergiaRequest req) {
         p.atualizar(req.nomeLocal().trim(), req.tipoEstabelecimento(), req.responsavel().trim(), req.telefone().trim(),
-                req.bairro().trim(), req.possuiGerador(), req.disponivel(), req.latitude(), req.longitude());
+                req.bairro().trim(), req.possuiGerador(), req.disponivel());
     }
 }

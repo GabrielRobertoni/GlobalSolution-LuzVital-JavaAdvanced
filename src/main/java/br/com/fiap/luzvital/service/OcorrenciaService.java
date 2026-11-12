@@ -19,7 +19,6 @@ import br.com.fiap.luzvital.domain.Ocorrencia;
 import br.com.fiap.luzvital.domain.Paciente;
 import br.com.fiap.luzvital.domain.PontoEnergia;
 import br.com.fiap.luzvital.domain.StatusOcorrencia;
-import br.com.fiap.luzvital.domain.Usuario;
 import br.com.fiap.luzvital.dto.OcorrenciaDtos;
 import br.com.fiap.luzvital.dto.OcorrenciaDtos.AberturaOcorrenciaRequest;
 import br.com.fiap.luzvital.dto.OcorrenciaDtos.AparelhoCriticoResposta;
@@ -37,7 +36,6 @@ import br.com.fiap.luzvital.messaging.EnergiaCaiuEvento;
 import br.com.fiap.luzvital.repository.OcorrenciaRepository;
 import br.com.fiap.luzvital.repository.PacienteRepository;
 import br.com.fiap.luzvital.repository.PontoEnergiaRepository;
-import br.com.fiap.luzvital.repository.UsuarioRepository;
 import br.com.fiap.luzvital.security.UsuarioAutenticado;
 
 /**
@@ -51,17 +49,15 @@ public class OcorrenciaService {
     private final OcorrenciaRepository ocorrencias;
     private final PacienteRepository pacientes;
     private final PontoEnergiaRepository pontos;
-    private final UsuarioRepository usuarios;
     private final PriorizacaoService priorizacao;
     private final ApplicationEventPublisher eventos;
 
     public OcorrenciaService(OcorrenciaRepository ocorrencias, PacienteRepository pacientes,
-                             PontoEnergiaRepository pontos, UsuarioRepository usuarios, PriorizacaoService priorizacao,
+                             PontoEnergiaRepository pontos, PriorizacaoService priorizacao,
                              ApplicationEventPublisher eventos) {
         this.ocorrencias = ocorrencias;
         this.pacientes = pacientes;
         this.pontos = pontos;
-        this.usuarios = usuarios;
         this.priorizacao = priorizacao;
         this.eventos = eventos;
     }
@@ -147,17 +143,15 @@ public class OcorrenciaService {
     }
 
     @Transactional
-    public AtendimentoResposta registrarAtendimento(Long id, AtendimentoRequest req, UsuarioAutenticado gestor) {
+    public AtendimentoResposta registrarAtendimento(Long id, AtendimentoRequest req) {
         Ocorrencia o = carregar(id);
         exigirAtiva(o);
-        Usuario usuarioGestor = usuarios.findById(gestor.id())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário", gestor.id()));
         PontoEnergia ponto = null;
         if (req.pontoEnergiaId() != null) {
             ponto = pontos.findById(req.pontoEnergiaId())
                     .orElseThrow(() -> new RecursoNaoEncontradoException("Ponto de energia", req.pontoEnergiaId()));
         }
-        Atendimento atendimento = new Atendimento(o, usuarioGestor, ponto, req.tipo(), req.descricao().trim(),
+        Atendimento atendimento = new Atendimento(o, ponto, req.tipoSocorro(), req.descricao().trim(),
                 LocalDateTime.now());
         o.registrarAtendimento(atendimento);
         ocorrencias.flush();
@@ -191,14 +185,17 @@ public class OcorrenciaService {
     @Transactional(readOnly = true)
     public IndicadoresResposta indicadores() {
         List<Ocorrencia> todas = ocorrencias.findAll();
-        List<Ocorrencia> atendidas = todas.stream().filter(o -> o.getStatus() == StatusOcorrencia.ATENDIDO).toList();
+        // Registros da carga do banco podem estar ATENDIDO sem dh_fim: só entram nas médias os que têm fim
+        List<Ocorrencia> atendidas = todas.stream()
+                .filter(o -> o.getStatus() == StatusOcorrencia.ATENDIDO && o.getDataFim() != null).toList();
         Double tempoMedio = atendidas.isEmpty() ? null : arredondar(atendidas.stream()
                 .mapToLong(o -> Duration.between(o.getDataInicio(), o.getDataFim()).toMinutes()).average().orElse(0));
         Double antesFimBateria = atendidas.isEmpty() ? null : arredondar(100.0 * atendidas.stream()
                 .filter(o -> !o.getDataFim().isAfter(o.previsaoEsgotamento())).count() / atendidas.size());
         Map<String, Long> pontosPorBairro = pontos.findByDisponivel(true).stream()
                 .collect(Collectors.groupingBy(PontoEnergia::getBairro, TreeMap::new, Collectors.counting()));
-        return new IndicadoresResposta(todas.size(), todas.stream().filter(Ocorrencia::isAtiva).count(), atendidas.size(),
+        long totalAtendidas = todas.stream().filter(o -> o.getStatus() == StatusOcorrencia.ATENDIDO).count();
+        return new IndicadoresResposta(todas.size(), todas.stream().filter(Ocorrencia::isAtiva).count(), totalAtendidas,
                 todas.stream().filter(o -> o.getStatus() == StatusOcorrencia.CANCELADO).count(), tempoMedio,
                 antesFimBateria, pacientes.count(), pontosPorBairro);
     }
@@ -227,7 +224,7 @@ public class OcorrenciaService {
     private OcorrenciaResposta detalhe(Ocorrencia o, LocalDateTime agora) {
         Paciente p = o.getPaciente();
         return new OcorrenciaResposta(o.getId(), p.getId(), p.getNome(), p.getBairro(), o.getStatus(), o.getDataInicio(),
-                o.getDataFim(), o.getBateriaInicialMin(), o.getDataBateria(),
+                o.getDataFim(), o.getBateriaMinutos(), o.referenciaBateria(),
                 o.isAtiva() ? o.minutosRestantes(agora) : 0, o.previsaoEsgotamento(), o.getPrioridadeScore(),
                 o.isPriorizada(), o.getObservacao(), AparelhoCriticoResposta.de(p.equipamentoCritico().orElse(null)),
                 o.getAtendimentos().stream().map(AtendimentoResposta::de).toList(),
@@ -238,7 +235,7 @@ public class OcorrenciaService {
     private FilaItemResposta itemFila(int posicao, Ocorrencia o, LocalDateTime agora) {
         Paciente p = o.getPaciente();
         return new FilaItemResposta(posicao, o.getId(), p.getId(), p.getNome(), p.getBairro(), p.getCidade(),
-                p.getContatoCuidador(), o.getStatus(), o.getDataInicio(), o.minutosRestantes(agora),
+                p.getTelefone(), o.getStatus(), o.getDataInicio(), o.minutosRestantes(agora),
                 o.previsaoEsgotamento(), AparelhoCriticoResposta.de(p.equipamentoCritico().orElse(null)),
                 p.possuiFonteReserva(), o.getPrioridadeScore(), o.isPriorizada(), o.getAtendimentos().size(),
                 o.getNotificacoes().size());

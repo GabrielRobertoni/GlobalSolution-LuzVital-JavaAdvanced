@@ -26,8 +26,8 @@ public final class EquipamentoDtos {
     public record EquipamentoRequest(
             @Schema(example = "1") @NotNull @Positive Long pacienteId,
             @Schema(example = "VENTILADOR_MECANICO") @NotNull TipoAparelho tipoAparelho,
-            @Schema(example = "Philips") @NotBlank @Size(max = 50) String fabricante,
-            @Schema(example = "Trilogy Evo") @NotBlank @Size(max = 50) String modelo,
+            @Schema(example = "Philips") @NotBlank @Size(max = 80) String fabricante,
+            @Schema(example = "Trilogy Evo") @NotBlank @Size(max = 80) String modelo,
             @Schema(example = "120.00", description = "Potência em watts (maior que zero)")
             @NotNull @DecimalMin(value = "0.0", inclusive = false, message = "a potência deve ser maior que zero")
             @DecimalMax(value = "9999.99", message = "a potência deve ser no máximo 9999.99 W")

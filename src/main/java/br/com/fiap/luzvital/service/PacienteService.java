@@ -93,9 +93,8 @@ public class PacienteService {
     }
 
     private void aplicar(Paciente p, PacienteRequest req, String cpf) {
-        p.atualizar(req.nome().trim(), cpf, req.logradouro().trim(), req.numero().trim(), req.bairro().trim(),
-                req.cidade().trim(), req.uf().toUpperCase(Locale.ROOT), Formatos.cep(req.cep()),
-                req.contatoCuidador().trim(), req.latitude(), req.longitude());
+        p.atualizar(req.nome().trim(), cpf, req.endereco().trim(), req.bairro().trim(), req.cidade().trim(),
+                req.uf().toUpperCase(Locale.ROOT), Formatos.cep(req.cep()), req.telefone().trim());
     }
 
     private static String vazioParaNulo(String s) {

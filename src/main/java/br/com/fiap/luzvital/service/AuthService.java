@@ -5,6 +5,7 @@ import java.util.Locale;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.stereotype.Service;
@@ -64,6 +65,9 @@ public class AuthService {
         if (usuario == null || !senhaOk) {
             throw new BadCredentialsException("E-mail ou senha inválidos");
         }
+        if (!usuario.isAtivo()) {
+            throw new DisabledException("Usuário inativo (st_usuario = 'N')");
+        }
         return autenticado(usuario);
     }
 
@@ -93,8 +97,7 @@ public class AuthService {
         if (usuarios.existsByEmailIgnoreCase(email)) {
             throw new ConflitoException("Já existe um usuário com o e-mail " + email);
         }
-        Usuario usuario = new Usuario(req.nome().trim(), email, passwordEncoder.encode(req.senha()), papel,
-                req.telefone());
+        Usuario usuario = new Usuario(req.nome().trim(), email, passwordEncoder.encode(req.senha()), papel);
         return usuarios.save(usuario);
     }
 

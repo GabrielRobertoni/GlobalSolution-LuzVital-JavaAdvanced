@@ -7,23 +7,25 @@ import br.com.fiap.luzvital.domain.Equipamento;
 import br.com.fiap.luzvital.domain.Ocorrencia;
 
 /**
- * Regra de prioridade do Luz Vital (mesma lógica das funções Oracle FN_MINUTOS_RESTANTES e
- * FN_CALCULA_PRIORIDADE do script de banco).
+ * Regra de prioridade do Luz Vital, idêntica ao pacote Oracle PKG_T_GS_EQUIPAMENTO:
  * <ul>
- *   <li>Minutos restantes: menor autonomia entre os aparelhos de suporte à vida, menos o tempo desde a queda.</li>
- *   <li>Score: quanto menos minutos, maior a urgência; sem fonte reserva soma 150.</li>
- *   <li>Fila: menos minutos primeiro; no empate, ventilador antes de concentrador; depois maior score e chegada.</li>
+ *   <li>Minutos restantes (FN_T_GS_MINUTOS_RESTANTES): menor autonomia entre os aparelhos de suporte à vida,
+ *       descontado o tempo desde que a bateria foi informada.</li>
+ *   <li>Score (FN_T_GS_CALCULA_PRIORIDADE): 0 min = 1000; até 60 min = 800 + (60 - min);
+ *       até 180 min = 500 + (180 - min); acima = 100; +200 se o paciente usa aparelho de suporte à vida.</li>
+ *   <li>Fila do gestor: menos minutos primeiro; no empate, ventilador antes de concentrador; depois maior score
+ *       e ordem de chegada.</li>
  * </ul>
  * É uma regra inicial, a validar com um profissional de saúde (decisão de projeto, não protocolo clínico).
  */
 public final class RegraPrioridade {
 
-    public static final int BONUS_SEM_RESERVA = 150;
+    public static final int BONUS_SUPORTE_VIDA = 200;
 
     private RegraPrioridade() {
     }
 
-    public static int calcularScore(int minutosRestantes, boolean possuiFonteReserva) {
+    public static int calcularScore(int minutosRestantes, boolean suporteVida) {
         int score;
         if (minutosRestantes <= 0) {
             score = 1000;
@@ -34,8 +36,8 @@ public final class RegraPrioridade {
         } else {
             score = 100;
         }
-        if (!possuiFonteReserva) {
-            score += BONUS_SEM_RESERVA;
+        if (suporteVida) {
+            score += BONUS_SUPORTE_VIDA;
         }
         return score;
     }

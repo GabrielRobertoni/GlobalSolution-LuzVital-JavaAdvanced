@@ -12,7 +12,6 @@ public record LuzVitalProperties(
         Jwt jwt,
         Cors cors,
         Ia ia,
-        Notificacao notificacao,
         Seed seed) {
 
     /**
@@ -38,10 +37,6 @@ public record LuzVitalProperties(
     public record Ia(@DefaultValue("true") boolean habilitada,
                      String chave,
                      String modelo) {
-    }
-
-    /** @param raioKm distância máxima para avisar um ponto de energia quando há coordenadas */
-    public record Notificacao(@DefaultValue("5.0") double raioKm) {
     }
 
     public record Seed(@DefaultValue("true") boolean habilitado) {

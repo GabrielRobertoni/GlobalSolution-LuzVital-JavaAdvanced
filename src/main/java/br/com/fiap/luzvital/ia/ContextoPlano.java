@@ -17,7 +17,7 @@ import br.com.fiap.luzvital.domain.TipoAparelho;
 public record ContextoPlano(
         String bairro,
         String cidade,
-        String contatoCuidador,
+        String telefone,
         List<Aparelho> aparelhos,
         List<Ponto> pontosEnergia) {
 
@@ -34,7 +34,7 @@ public record ContextoPlano(
         List<Ponto> pontosInfo = pontos.stream()
                 .map(p -> new Ponto(p.getNomeLocal(), p.getTelefone(), p.getBairro(), p.isPossuiGerador()))
                 .toList();
-        return new ContextoPlano(paciente.getBairro(), paciente.getCidade(), paciente.getContatoCuidador(), aparelhos,
+        return new ContextoPlano(paciente.getBairro(), paciente.getCidade(), paciente.getTelefone(), aparelhos,
                 pontosInfo);
     }
 
@@ -58,7 +58,7 @@ public record ContextoPlano(
     public String descricaoParaPrompt() {
         StringBuilder sb = new StringBuilder();
         sb.append("Local: bairro ").append(bairro).append(", ").append(cidade).append('\n');
-        sb.append("Telefone do cuidador: ").append(contatoCuidador).append('\n');
+        sb.append("Telefone de contato da família: ").append(telefone).append('\n');
         sb.append("Menor autonomia entre os aparelhos de suporte à vida: ").append(menorAutonomiaCritica())
                 .append(" minutos\n");
         sb.append("Aparelhos cadastrados:\n");

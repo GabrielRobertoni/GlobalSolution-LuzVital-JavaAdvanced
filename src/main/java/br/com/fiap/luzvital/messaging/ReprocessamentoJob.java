@@ -45,7 +45,7 @@ public class ReprocessamentoJob {
     @Transactional
     public void reprocessar() {
         LocalDateTime agora = LocalDateTime.now();
-        for (Ocorrencia o : ocorrencias.findByStatusInAndDataPriorizacaoIsNullAndDataInicioBefore(ATIVAS, agora.minusSeconds(30))) {
+        for (Ocorrencia o : ocorrencias.buscarNaoPriorizadas(ATIVAS, agora.minusSeconds(30))) {
             log.warn("Ocorrência {} ainda sem prioridade: publicando energia.caiu de novo", o.getId());
             publisher.enviar(RabbitConfig.RK_ENERGIA_CAIU,
                     new EnergiaCaiuEvento(o.getId(), o.getPaciente().getId(), o.getPaciente().getBairro(), o.getDataInicio()),
