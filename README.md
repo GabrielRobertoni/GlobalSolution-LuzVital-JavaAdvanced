@@ -162,6 +162,8 @@ Pré-requisitos: JDK 21+, PostgreSQL 14+ e RabbitMQ 3.12+ rodando localmente.
    ```
    No Windows, use `mvnw.cmd spring-boot:run`. No IntelliJ, rode a classe `LuzVitalApplication` com a pasta do projeto como diretório de trabalho.
 
+> **Erro de certificado ao chamar a IA no Windows?** Se o log mostrar `unable to find valid certification path`, um antivírus ou proxy está interceptando o HTTPS. Rode a API usando os certificados do Windows com a opção de JVM `-Djavax.net.ssl.trustStoreType=Windows-ROOT`. No IntelliJ: *Run > Edit Configurations > Modify options > Add VM options*.
+
 ### Opção 3: Oracle (banco da disciplina)
 
 1. No Oracle, rode o script da disciplina de banco (`GSBancoOracle.sql`) e depois [`scripts/oracle-complemento-api-java.sql`](scripts/oracle-complemento-api-java.sql), que cria as 4 tabelas de apoio.
@@ -181,11 +183,13 @@ Nenhuma credencial real fica no repositório.
 | `JWT_SECRET` | vazio (chave aleatória a cada subida) | Chave HS256 com 32+ caracteres. **A mesma chave na API .NET** |
 | `IA_API_KEY` | vazio (IA desligada) | Chave do provedor de IA. Sem ela, o plano usa as regras padrão e a leitura de etiqueta devolve 503 |
 | `IA_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` | Endpoint compatível com OpenAI (Gemini, `https://api.openai.com/v1`, Groq...) |
-| `IA_MODELO` | `gemini-3.8-flash` | Modelo. Para a foto da etiqueta, precisa aceitar imagem |
+| `IA_MODELO` | `gemini-3.5-flash-lite` | Modelo. Para a foto da etiqueta, precisa aceitar imagem |
 | `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | `localhost` / `5432` / `luzvital` / `luzvital` / `luzvital` | PostgreSQL |
 | `RABBITMQ_ADDRESSES` | `amqp://guest:guest@localhost:5672` | RabbitMQ (aceita `amqps://` do CloudAMQP) |
 | `CORS_ORIGENS` | `*` | Origens liberadas (Expo web) |
 | `PORT` | `8080` | Porta HTTP |
+
+**IA testada com o Gemini real.** Os modelos `gemini-3.5-flash-lite` (padrão: plano em cerca de 15 s e leitura da etiqueta em cerca de 3 s) e `gemini-3.5-flash` foram testados com chave real. No plano gratuito, o Google limita as requisições por dia **para cada modelo**. Quando a cota acaba (erro 429), a API continua funcionando: o plano sai pelas regras padrão e a leitura de etiqueta pede o preenchimento manual. Para seguir testando, troque `IA_MODELO` para outro modelo ou aguarde a renovação diária da cota.
 
 ## Usuários de teste
 
@@ -299,10 +303,10 @@ Vale para todos os erros: 400, 401, 403, 404, 409, 422, 503 e 500.
 ./mvnw test
 ```
 
-São 27 testes:
+São 29 testes:
 - **Regras:** score igual ao de `FN_T_GS_CALCULA_PRIORIDADE`, fila, contagem regressiva e códigos gravados no banco (constraints com acento).
 - **Etiqueta:** potência estimada por V × A.
-- **Spring AI:** `ChatModel` simulado, com saída estruturada e guarda-corpos.
+- **Spring AI:** `ChatModel` simulado, com saída estruturada, guarda-corpos e nova tentativa quando a resposta vem cortada.
 - **Integração com MockMvc:** 401/403 no formato padrão, validação, publicação de `energia.caiu`, idempotência, 409 e 422.
 - **`OracleModeloBancoTest`:** roda a API sobre **o DDL e a carga originais do `GSBancoOracle.sql`** (H2 em modo Oracle, `ddl-auto=none`) mais o script das tabelas de apoio. Prova que login, fila, atendimentos com constraint, bateria, idempotência, CRUD, plano e logout funcionam no modelo do banco sem alterá-lo.
 
