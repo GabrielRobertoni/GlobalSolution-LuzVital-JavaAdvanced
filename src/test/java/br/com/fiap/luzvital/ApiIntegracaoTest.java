@@ -153,7 +153,7 @@ class ApiIntegracaoTest {
     }
 
     private String tokenGestor(String email) throws Exception {
-        usuarios.save(new Usuario("Gestor", email, encoder.encode("Gestor123"), Papel.GESTOR, null));
+        usuarios.save(new Usuario("Gestor", email, encoder.encode("Gestor123"), Papel.GESTOR));
         String resp = mvc.perform(post("/auth/login").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"email\":\"" + email + "\",\"senha\":\"Gestor123\"}"))
                 .andExpect(status().isOk())
@@ -166,8 +166,8 @@ class ApiIntegracaoTest {
         String resp = mvc.perform(post("/pacientes").header("Authorization", "Bearer " + cuidador)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"nome":"Paciente Teste","cpf":"%s","logradouro":"Rua A","numero":"1","bairro":"Bela Vista",
-                                 "cidade":"São Paulo","uf":"SP","cep":"01318-000","contatoCuidador":"(11) 98888-1111"}
+                                {"nome":"Paciente Teste","cpf":"%s","endereco":"Rua A, 1","bairro":"Bela Vista",
+                                 "cidade":"São Paulo","uf":"SP","cep":"01318-000","telefone":"(11) 98888-1111"}
                                 """.formatted(cpf)))
                 .andExpect(status().isCreated())
                 .andReturn().getResponse().getContentAsString();

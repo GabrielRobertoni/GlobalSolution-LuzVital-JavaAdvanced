@@ -20,15 +20,17 @@ class RegraPrioridadeTest {
     private final LocalDateTime t0 = LocalDateTime.of(2026, 11, 10, 20, 0);
 
     @Test
-    void scoreSegueAsFaixasDaFuncaoOracle() {
-        assertThat(RegraPrioridade.calcularScore(0, true)).isEqualTo(1000);
-        assertThat(RegraPrioridade.calcularScore(60, true)).isEqualTo(800);
-        assertThat(RegraPrioridade.calcularScore(1, true)).isEqualTo(859);
-        assertThat(RegraPrioridade.calcularScore(61, true)).isEqualTo(619);
-        assertThat(RegraPrioridade.calcularScore(180, true)).isEqualTo(500);
-        assertThat(RegraPrioridade.calcularScore(900, true)).isEqualTo(100);
-        assertThat(RegraPrioridade.calcularScore(900, false)).isEqualTo(250);
-        assertThat(RegraPrioridade.calcularScore(0, false)).isEqualTo(1150);
+    void scoreIgualAFuncaoOracleFnTGsCalculaPrioridade() {
+        // Faixas de FN_T_GS_CALCULA_PRIORIDADE, +200 quando o paciente usa aparelho de suporte à vida
+        assertThat(RegraPrioridade.calcularScore(0, true)).isEqualTo(1200);
+        assertThat(RegraPrioridade.calcularScore(0, false)).isEqualTo(1000);
+        assertThat(RegraPrioridade.calcularScore(1, true)).isEqualTo(1059);
+        assertThat(RegraPrioridade.calcularScore(45, true)).isEqualTo(1015);
+        assertThat(RegraPrioridade.calcularScore(60, true)).isEqualTo(1000);
+        assertThat(RegraPrioridade.calcularScore(61, false)).isEqualTo(619);
+        assertThat(RegraPrioridade.calcularScore(180, false)).isEqualTo(500);
+        assertThat(RegraPrioridade.calcularScore(900, true)).isEqualTo(300);
+        assertThat(RegraPrioridade.calcularScore(900, false)).isEqualTo(100);
     }
 
     @Test
@@ -74,11 +76,9 @@ class RegraPrioridadeTest {
     }
 
     @Test
-    void distanciaHaversineEntreDoisPontosDeSaoPaulo() {
-        BigDecimal km = Formatos.distanciaKm(new BigDecimal("-23.562000"), new BigDecimal("-46.648000"),
-                new BigDecimal("-23.561400"), new BigDecimal("-46.655900"));
-        assertThat(km.doubleValue()).isBetween(0.7, 0.9);
+    void bairroIgnoraAcentoEMaiusculas() {
         assertThat(Formatos.mesmoBairro("Consolação", "  consolacao ")).isTrue();
+        assertThat(Formatos.mesmoBairro("Bela Vista", "Pinheiros")).isFalse();
     }
 
     private Paciente paciente(TipoAparelho tipo, int autonomia) {

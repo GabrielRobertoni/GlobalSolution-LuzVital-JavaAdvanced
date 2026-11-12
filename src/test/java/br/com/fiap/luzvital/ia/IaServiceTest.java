@@ -90,7 +90,7 @@ class IaServiceTest {
         StaticListableBeanFactory bf = new StaticListableBeanFactory();
         bf.addBean("chatClientBuilder", ChatClient.builder(modelo));
         LuzVitalProperties props = new LuzVitalProperties(null, null,
-                new LuzVitalProperties.Ia(habilitada, chave, "modelo-teste"), null, null);
+                new LuzVitalProperties.Ia(habilitada, chave, "modelo-teste"), null);
         return new IaService(bf.getBeanProvider(ChatClient.Builder.class), props);
     }
 }
