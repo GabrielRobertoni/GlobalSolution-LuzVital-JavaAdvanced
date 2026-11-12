@@ -1,0 +1,6 @@
+.env
+.git
+target
+.idea
+*.iml
+ENTREGA-*.txt

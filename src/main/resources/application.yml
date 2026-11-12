@@ -1,8 +1,8 @@
 # =====================================================================
 #  Luz Vital API (Java) - configuração padrão: PostgreSQL + RabbitMQ
 #  Nenhuma credencial real fica no repositório: tudo vem de variáveis
-#  de ambiente (veja .env.example). Os valores padrão abaixo são só
-#  para rodar localmente com o docker-compose.yml.
+#  de ambiente ou do arquivo .env (copie de .env.example; o .env está
+#  no .gitignore). Os valores padrão abaixo são só para rodar localmente.
 # =====================================================================
 server:
   port: ${PORT:8080}
@@ -10,6 +10,10 @@ server:
 spring:
   application:
     name: luz-vital-api
+
+  # Lê o .env da pasta do projeto também fora do Docker (IntelliJ, mvnw). Variável de ambiente tem prioridade.
+  config:
+    import: optional:file:.env[.properties]
 
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:luzvital}
@@ -72,8 +76,8 @@ spring:
       max-retries: 1
       timeout: 60s
       chat:
-        model: ${IA_MODELO:gemini-3.5-flash}
-        temperature: 0.3
+        # Temperatura padrão do provedor (o Gemini 3+ recomenda não reduzir a temperatura)
+        model: ${IA_MODELO:gemini-3.8-flash}
 
 luzvital:
   jwt:
@@ -87,7 +91,7 @@ luzvital:
   ia:
     habilitada: ${IA_HABILITADA:true}
     chave: ${IA_API_KEY:}
-    modelo: ${IA_MODELO:gemini-3.5-flash}
+    modelo: ${IA_MODELO:gemini-3.8-flash}
   seed:
     habilitado: ${SEED_HABILITADO:true}
 
