@@ -41,4 +41,4 @@ services:
       JWT_SECRET: ${JWT_SECRET:-}
       IA_API_KEY: ${IA_API_KEY:-}
       IA_BASE_URL: ${IA_BASE_URL:-https://generativelanguage.googleapis.com/v1beta/openai}
-      IA_MODELO: ${IA_MODELO:-gemini-3.5-flash}
+      IA_MODELO: ${IA_MODELO:-gemini-3.8-flash}

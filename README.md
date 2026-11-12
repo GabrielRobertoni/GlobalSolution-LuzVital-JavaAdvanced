@@ -155,11 +155,12 @@ Pré-requisitos: JDK 21+, PostgreSQL 14+ e RabbitMQ 3.12+ rodando localmente.
    CREATE ROLE luzvital LOGIN PASSWORD 'luzvital';
    CREATE DATABASE luzvital OWNER luzvital;
    ```
-2. Defina as variáveis desejadas (opcional) e suba a API:
+2. (Opcional) Copie `.env.example` para `.env` e preencha `IA_API_KEY` e `JWT_SECRET`. A API lê o `.env` da pasta do projeto também fora do Docker (IntelliJ ou Maven). Uma variável de ambiente definida no sistema tem prioridade sobre o `.env`.
+3. Suba a API:
    ```bash
    ./mvnw spring-boot:run
    ```
-   No Windows, use `mvnw.cmd spring-boot:run`.
+   No Windows, use `mvnw.cmd spring-boot:run`. No IntelliJ, rode a classe `LuzVitalApplication` com a pasta do projeto como diretório de trabalho.
 
 ### Opção 3: Oracle (banco da disciplina)
 
@@ -180,7 +181,7 @@ Nenhuma credencial real fica no repositório.
 | `JWT_SECRET` | vazio (chave aleatória a cada subida) | Chave HS256 com 32+ caracteres. **A mesma chave na API .NET** |
 | `IA_API_KEY` | vazio (IA desligada) | Chave do provedor de IA. Sem ela, o plano usa as regras padrão e a leitura de etiqueta devolve 503 |
 | `IA_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` | Endpoint compatível com OpenAI (Gemini, `https://api.openai.com/v1`, Groq...) |
-| `IA_MODELO` | `gemini-3.5-flash` | Modelo. Para a foto da etiqueta, precisa aceitar imagem |
+| `IA_MODELO` | `gemini-3.8-flash` | Modelo. Para a foto da etiqueta, precisa aceitar imagem |
 | `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | `localhost` / `5432` / `luzvital` / `luzvital` / `luzvital` | PostgreSQL |
 | `RABBITMQ_ADDRESSES` | `amqp://guest:guest@localhost:5672` | RabbitMQ (aceita `amqps://` do CloudAMQP) |
 | `CORS_ORIGENS` | `*` | Origens liberadas (Expo web) |
