@@ -62,23 +62,51 @@ public class IaService {
         return config.modelo();
     }
 
+    /**
+     * Gera o plano estruturado. Se a resposta vier cortada ou incompleta (JSON inválido), tenta mais uma vez;
+     * erros de rede, de cota (429) ou de provedor indisponível não são repetidos aqui.
+     */
     public PlanoGerado gerarPlano(ContextoPlano contexto) {
         ChatClient client = cliente();
-        try {
-            PlanoGerado plano = client.prompt()
-                    .system(SISTEMA_PLANO)
-                    .user("Monte o plano de contingência para esta família.\n" + contexto.descricaoParaPrompt())
-                    .call()
-                    .entity(PlanoGerado.class);
-            if (plano == null || !plano.completo()) {
-                throw new IaIndisponivelException("A IA devolveu um plano incompleto");
+        for (int tentativa = 1; ; tentativa++) {
+            try {
+                PlanoGerado plano = client.prompt()
+                        .system(SISTEMA_PLANO)
+                        .user("Monte o plano de contingência para esta família.\n" + contexto.descricaoParaPrompt())
+                        .call()
+                        .entity(PlanoGerado.class);
+                if (plano == null || !plano.completo()) {
+                    throw new RespostaInvalidaException("A IA devolveu um plano incompleto");
+                }
+                return garantirContatosOficiais(plano);
+            } catch (RuntimeException ex) {
+                if (tentativa < 2 && respostaInvalida(ex)) {
+                    log.warn("Resposta da IA inválida ({}); tentando de novo", causaRaiz(ex));
+                    continue;
+                }
+                log.warn("Falha ao gerar plano com a IA: {}", causaRaiz(ex));
+                throw new IaIndisponivelException("O provedor de IA não respondeu: " + ex.getMessage(), ex);
             }
-            return garantirContatosOficiais(plano);
-        } catch (IaIndisponivelException ex) {
-            throw ex;
-        } catch (RuntimeException ex) {
-            log.warn("Falha ao gerar plano com a IA: {}", ex.getMessage());
-            throw new IaIndisponivelException("O provedor de IA não respondeu: " + ex.getMessage(), ex);
+        }
+    }
+
+    /** JSON cortado/mal formado ou plano incompleto: vale repetir. Rede, 401, 429 e 503 não. */
+    static boolean respostaInvalida(Throwable ex) {
+        for (Throwable t = ex; t != null; t = t.getCause() == t ? null : t.getCause()) {
+            if (t instanceof RespostaInvalidaException) {
+                return true;
+            }
+            String nome = t.getClass().getName();
+            if (nome.startsWith("tools.jackson") || nome.startsWith("com.fasterxml.jackson")) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    static class RespostaInvalidaException extends RuntimeException {
+        RespostaInvalidaException(String mensagem) {
+            super(mensagem);
         }
     }
 
@@ -92,7 +120,7 @@ public class IaService {
                     .call()
                     .entity(EtiquetaExtraida.class);
         } catch (RuntimeException ex) {
-            log.warn("Falha ao ler etiqueta com a IA: {}", ex.getMessage());
+            log.warn("Falha ao ler etiqueta com a IA: {}", causaRaiz(ex));
             throw new IaIndisponivelException("Não foi possível ler a etiqueta agora. Preencha os dados manualmente.", ex);
         }
     }
@@ -103,6 +131,16 @@ public class IaService {
                     "IA generativa não configurada nesta API (defina IA_API_KEY). Preencha os dados manualmente.");
         }
         return chatClientBuilder.getObject().build();
+    }
+
+    /** Mensagem + causa raiz (ex.: certificado TLS, 401 de chave inválida, 503 de modelo sobrecarregado). */
+    static String causaRaiz(Throwable ex) {
+        Throwable raiz = ex;
+        while (raiz.getCause() != null && raiz.getCause() != raiz) {
+            raiz = raiz.getCause();
+        }
+        String detalhe = raiz == ex ? "" : " | causa: " + raiz.getClass().getSimpleName() + ": " + raiz.getMessage();
+        return ex.getClass().getSimpleName() + ": " + ex.getMessage() + detalhe;
     }
 
     /** Guarda-corpo: os números de emergência entram no plano mesmo que o modelo os omita. */

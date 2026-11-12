@@ -57,8 +57,35 @@ class IaServiceTest {
 
     @Test
     void planoIncompletoDaIaViraIndisponivel() {
-        IaService ia = servico(p -> "{\"resumo\":\"x\",\"etapas\":[],\"contatos\":[],\"sinaisAlerta\":[]}", true, "chave");
+        java.util.concurrent.atomic.AtomicInteger chamadas = new java.util.concurrent.atomic.AtomicInteger();
+        IaService ia = servico(p -> {
+            chamadas.incrementAndGet();
+            return "{\"resumo\":\"x\",\"etapas\":[],\"contatos\":[],\"sinaisAlerta\":[]}";
+        }, true, "chave");
         assertThatThrownBy(() -> ia.gerarPlano(contexto)).isInstanceOf(IaIndisponivelException.class);
+        assertThat(chamadas.get()).isEqualTo(2); // tentou de novo uma vez
+    }
+
+    @Test
+    void jsonCortadoNaPrimeiraRespostaTentaDeNovo() {
+        java.util.concurrent.atomic.AtomicInteger chamadas = new java.util.concurrent.atomic.AtomicInteger();
+        IaService ia = servico(p -> chamadas.incrementAndGet() == 1
+                ? "{\"resumo\":\"Ventilador com 15 h\",\"etapas\":[{\"faixaTe" // resposta cortada no meio
+                : RESPOSTA_LLM, true, "chave");
+        PlanoGerado plano = ia.gerarPlano(contexto);
+        assertThat(plano.resumo()).contains("15 h");
+        assertThat(chamadas.get()).isEqualTo(2);
+    }
+
+    @Test
+    void erroDeCotaNaoERepetido() {
+        java.util.concurrent.atomic.AtomicInteger chamadas = new java.util.concurrent.atomic.AtomicInteger();
+        IaService ia = servico(p -> {
+            chamadas.incrementAndGet();
+            throw new IllegalStateException("429: You exceeded your current quota");
+        }, true, "chave");
+        assertThatThrownBy(() -> ia.gerarPlano(contexto)).isInstanceOf(IaIndisponivelException.class);
+        assertThat(chamadas.get()).isEqualTo(1);
     }
 
     @Test
