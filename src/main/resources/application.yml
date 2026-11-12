@@ -74,10 +74,10 @@ spring:
       api-key: ${IA_API_KEY:nao-configurada}
       base-url: ${IA_BASE_URL:https://generativelanguage.googleapis.com/v1beta/openai}
       max-retries: 1
-      timeout: 60s
+      timeout: 120s   # o LLM pode levar dezenas de segundos para um plano completo
       chat:
         # Temperatura padrão do provedor (o Gemini 3+ recomenda não reduzir a temperatura)
-        model: ${IA_MODELO:gemini-3.8-flash}
+        model: ${IA_MODELO:gemini-3.5-flash-lite}
 
 luzvital:
   jwt:
@@ -91,7 +91,7 @@ luzvital:
   ia:
     habilitada: ${IA_HABILITADA:true}
     chave: ${IA_API_KEY:}
-    modelo: ${IA_MODELO:gemini-3.8-flash}
+    modelo: ${IA_MODELO:gemini-3.5-flash-lite}
   seed:
     habilitado: ${SEED_HABILITADO:true}
 

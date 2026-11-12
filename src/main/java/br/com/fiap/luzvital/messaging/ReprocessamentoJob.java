@@ -51,7 +51,7 @@ public class ReprocessamentoJob {
                     new EnergiaCaiuEvento(o.getId(), o.getPaciente().getId(), o.getPaciente().getBairro(), o.getDataInicio()),
                     "reprocessamento da ocorrência " + o.getId());
         }
-        planos.findByStatusAndDataSolicitacaoBefore(StatusPlano.GERANDO, agora.minusMinutes(2)).forEach(p -> {
+        planos.findByStatusAndDataSolicitacaoBefore(StatusPlano.GERANDO, agora.minusMinutes(10)).forEach(p -> {
             log.warn("Plano do paciente {} parado em GERANDO: publicando plano.solicitado de novo", p.getPaciente().getId());
             publisher.enviar(RabbitConfig.RK_PLANO_SOLICITADO,
                     new PlanoSolicitadoEvento(p.getPaciente().getId(), "reprocessamento", p.getDataSolicitacao()),
