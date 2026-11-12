@@ -63,12 +63,12 @@ public record ContextoPlano(
                 .append(" minutos\n");
         sb.append("Aparelhos cadastrados:\n");
         for (Aparelho a : aparelhos) {
-            sb.append("- ").append(a.tipo()).append(" ").append(a.fabricante()).append(" ").append(a.modelo())
+            sb.append("- ").append(a.tipo().descricao()).append(" ").append(a.fabricante()).append(" ").append(a.modelo())
                     .append(" | potência ").append(a.potenciaWatts()).append(" W")
                     .append(" | autonomia da bateria ").append(a.autonomiaMinutos()).append(" min")
                     .append(a.autonomiaMinutos() == 0 ? " (sem bateria: para assim que a luz cai)" : "")
                     .append(" | suporte à vida: ").append(a.suporteVida() ? "sim" : "não")
-                    .append(" | fonte reserva: ").append(a.fonteReserva())
+                    .append(" | fonte reserva: ").append(a.fonteReserva().descricao())
                     .append(" | uma estação de energia de 1 kWh mantém este aparelho por cerca de ")
                     .append(a.horasComEstacao1kWh()).append(" h\n");
         }
