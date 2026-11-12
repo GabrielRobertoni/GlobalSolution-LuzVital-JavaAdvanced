@@ -2,7 +2,7 @@
 
 **Global Solution 2026/2 · CitizenTech · Java Advanced**
 
-O Luz Vital cadastra quem depende de aparelhos elétricos para viver (ventilador, concentrador de oxigênio, bomba de infusão...) e, quando a luz cai, **ordena o socorro pelos minutos de bateria que restam em cada casa**. Esta é a API Java: o núcleo com os cadastros, os papéis, a IA generativa e o evento assíncrono que monta a fila do gestor. É a mesma API consumida pelo app React Native.
+O Luz Vital cadastra quem depende de aparelhos elétricos para viver (ventilador, concentrador de oxigênio, aspirador de secreção, bomba de infusão...) e, quando a luz cai, **ordena o socorro pelos minutos de bateria que restam em cada casa**. Esta é a API Java: o núcleo com os cadastros, os papéis, a IA generativa e o evento assíncrono que monta a fila do gestor. É a mesma API consumida pelo app React Native.
 
 | | |
 |---|---|
@@ -17,28 +17,33 @@ O Luz Vital cadastra quem depende de aparelhos elétricos para viver (ventilador
 
 | Nome | RM |
 |---|---|
-| `<nome>` | `<RM>` |
+| Hebert Lopes do Santos | 563192 |
+| Nicolas Monteiro Ramiro | 562380 |
+| Marcus Vinícius Vila Nova da Silva | 558771 |
+| Bruno Ferreira | 563489 |
+| Gabriel Robertoni Padilha | 566293 |
 
 ---
 
 ## Sumário
 1. [Tecnologias](#tecnologias)
 2. [Arquitetura](#arquitetura)
-3. [Como rodar](#como-rodar)
-4. [Usuários de teste](#usuários-de-teste)
-5. [Endpoints principais](#endpoints-principais)
-6. [Roteiro de teste (ponta a ponta)](#roteiro-de-teste-ponta-a-ponta)
-7. [Como cada requisito foi atendido](#como-cada-requisito-foi-atendido)
-8. [Integração com o app Mobile e com a API .NET](#integração-com-o-app-mobile-e-com-a-api-net)
-9. [Testes automatizados](#testes-automatizados)
-10. [Declaração de uso de IA](#declaração-de-uso-de-ia)
+3. [Modelo de dados (integrado ao banco da disciplina)](#modelo-de-dados-integrado-ao-banco-da-disciplina)
+4. [Como rodar](#como-rodar)
+5. [Usuários de teste](#usuários-de-teste)
+6. [Endpoints principais](#endpoints-principais)
+7. [Roteiro de teste (ponta a ponta)](#roteiro-de-teste-ponta-a-ponta)
+8. [Como cada requisito foi atendido](#como-cada-requisito-foi-atendido)
+9. [Integração com o app Mobile e com a API .NET](#integração-com-o-app-mobile-e-com-a-api-net)
+10. [Testes automatizados](#testes-automatizados)
+11. [Declaração de uso de IA](#declaração-de-uso-de-ia)
 
 ---
 
 ## Tecnologias
 
 - Java 21, **Spring Boot 4.1**
-- **Spring Data JPA** (Hibernate 7). PostgreSQL por padrão; Oracle no perfil `oracle`, com as mesmas tabelas do script da disciplina de banco
+- **Spring Data JPA** (Hibernate 7) sobre as tabelas `T_GS_*` do banco da disciplina. PostgreSQL por padrão; Oracle no perfil `oracle`
 - **Spring Security + JWT** (resource server do Spring Security, HS256) com os papéis `CUIDADOR` e `GESTOR`
 - **Spring AI 2.0**: `ChatClient` com saída estruturada (records Java) e entrada multimodal (foto). O provedor é compatível com a API da OpenAI: Gemini por padrão, ou OpenAI e Groq
 - **RabbitMQ** (Spring AMQP): exchange topic, filas duráveis e dead letter queue
@@ -51,9 +56,9 @@ O Luz Vital cadastra quem depende de aparelhos elétricos para viver (ventilador
 flowchart LR
     APP[App React Native<br/>cuidador e gestor] -- JWT --> API[API Java<br/>Spring Boot]
     NET[API .NET<br/>canal de emergência] -. mesmo JWT .-> API
-    API -- JPA --> DB[(PostgreSQL / Oracle)]
+    API -- JPA --> DB[(Oracle T_GS_* /<br/>PostgreSQL)]
     API -- "publica energia.caiu<br/>e plano.solicitado" --> MQ{{RabbitMQ<br/>exchange luzvital.eventos}}
-    MQ -- luzvital.energia-caiu --> C1[Consumidor:<br/>prioridade + pontos de energia]
+    MQ -- luzvital.energia-caiu --> C1[Consumidor:<br/>prioridade + pontos do bairro]
     MQ -- luzvital.plano-contingencia --> C2[Consumidor:<br/>plano com Spring AI]
     C2 -- ChatClient --> LLM[LLM<br/>Gemini / OpenAI]
     API -- "foto da etiqueta<br/>(multimodal)" --> LLM
@@ -63,33 +68,70 @@ flowchart LR
 
 **Caminho crítico ("Estou sem luz")**
 1. O app chama `POST /ocorrencias` com o cabeçalho `Idempotency-Key`.
-2. A API trava a linha do paciente, confere a idempotência e se já existe ocorrência ativa, calcula a bateria inicial (menor autonomia entre os aparelhos de suporte à vida) e grava.
+2. A API trava a linha do paciente, confere a idempotência e se já existe ocorrência ativa (a mesma regra de `PR_T_GS_ABRIR_OCORRENCIA`), calcula a bateria inicial (menor autonomia entre os aparelhos de suporte à vida) e grava em `T_GS_OCORRENCIA`.
 3. **Só depois do commit**, publica `energia.caiu` no RabbitMQ (`@TransactionalEventListener(AFTER_COMMIT)`).
-4. O consumidor calcula o score de prioridade, encontra os pontos de energia próximos (num raio de 5 km pelas coordenadas, ou no mesmo bairro) e grava as notificações. Ele é idempotente: uma mensagem reentregue não duplica avisos.
+4. O consumidor calcula o score de prioridade, avisa os pontos de energia disponíveis no bairro do paciente (gerador primeiro) e grava os avisos. Ele é idempotente: uma mensagem reentregue não duplica avisos.
 5. O gestor vê a ocorrência em `GET /ocorrencias/fila`, **ordenada pelos minutos de bateria que restam agora**. No empate, ventilador vem antes de concentrador, depois o maior score e por fim a ordem de chegada.
+
+**Regra de prioridade.** É a mesma do pacote Oracle `PKG_T_GS_EQUIPAMENTO`:
+- **Minutos restantes:** menor autonomia de suporte à vida menos o tempo desde que a bateria foi informada (`FN_T_GS_MINUTOS_RESTANTES`).
+- **Score** (`FN_T_GS_CALCULA_PRIORIDADE`):
+
+  | Minutos restantes | Score |
+  |---|---|
+  | 0 | 1000 |
+  | até 60 | 800 + (60 − min) |
+  | até 180 | 500 + (180 − min) |
+  | acima de 180 | 100 |
+
+  Soma **+200** quando o paciente usa aparelho de suporte à vida.
 
 **Resiliência da mensageria**
 - Um erro no consumidor gera 3 tentativas com backoff; depois a mensagem vai para a fila `.dlq`, sem loop infinito.
 - Se o RabbitMQ estiver fora do ar na abertura, a ocorrência é gravada mesmo assim e aparece na fila (ordenada pelos minutos), e um job republica o evento a cada 60 s até ser consumido.
 
-**Modelo de dados.** As tabelas e colunas têm os mesmos nomes do script Oracle da equipe de banco.
+## Modelo de dados (integrado ao banco da disciplina)
+
+A API usa **as tabelas do script da disciplina de banco (`GSBancoOracle.sql`) sem nenhuma alteração**: mesmos nomes de tabela e coluna, mesmos tipos, mesmos valores de domínio. Inclusive os tipos de socorro com acento exigidos pela constraint `CK_T_GS_ATEND_TIPO` (`REMOÇAO_UTI`, `RELIGAÇÃO_PRIORITARIA`) e o aparelho `ASPIRADOR_SECREÇÃO` da carga.
+
+| Tabela da disciplina de banco | Entidade JPA | Relacionamento |
+|---|---|---|
+| `T_GS_USUARIO` | `Usuario` | cuidador 1:N pacientes |
+| `T_GS_PACIENTE` | `Paciente` | 1:N equipamentos, 1:N ocorrências |
+| `T_GS_EQUIPAMENTO` | `Equipamento` | N:1 paciente |
+| `T_GS_PONTO_ENERGIA` | `PontoEnergia` | 1:N atendimentos e avisos |
+| `T_GS_OCORRENCIA` | `Ocorrencia` | N:1 paciente, 1:N atendimentos |
+| `T_GS_ATENDIMENTO` | `Atendimento` | N:1 ocorrência, N:1 ponto |
+
+O que é exclusivo do backend fica em **4 tabelas de apoio**, no mesmo padrão de nomes ([`scripts/oracle-complemento-api-java.sql`](scripts/oracle-complemento-api-java.sql)):
+
+| Tabela de apoio | Para que serve |
+|---|---|
+| `T_GS_OCORRENCIA_CONTROLE` | Chave de idempotência do app, horário da bateria informada e horário da priorização (1:1 com a ocorrência) |
+| `T_GS_NOTIFICACAO_PONTO` | Avisos do consumidor de `energia.caiu` aos pontos de energia do bairro |
+| `T_GS_PLANO_CONTINGENCIA` | Plano de contingência gerado pela IA (JSON estruturado) |
+| `T_GS_TOKEN_REVOGADO` | Tokens JWT invalidados no logout |
 
 ```mermaid
 erDiagram
-    USUARIO ||--o{ PACIENTE : "cuida de"
-    PACIENTE ||--o{ EQUIPAMENTO : "usa"
-    PACIENTE ||--o| PLANO_CONTINGENCIA : "tem"
-    PACIENTE ||--o{ OCORRENCIA : "abre"
-    OCORRENCIA ||--o{ ATENDIMENTO : "recebe"
-    OCORRENCIA ||--o{ NOTIFICACAO_PONTO : "avisa"
-    PONTO_ENERGIA ||--o{ NOTIFICACAO_PONTO : "é avisado"
-    PONTO_ENERGIA |o--o{ ATENDIMENTO : "é acionado"
-    USUARIO ||--o{ ATENDIMENTO : "registra (gestor)"
+    T_GS_USUARIO ||--o{ T_GS_PACIENTE : "cuida de"
+    T_GS_PACIENTE ||--o{ T_GS_EQUIPAMENTO : "usa"
+    T_GS_PACIENTE ||--o{ T_GS_OCORRENCIA : "abre"
+    T_GS_OCORRENCIA ||--o{ T_GS_ATENDIMENTO : "recebe"
+    T_GS_PONTO_ENERGIA |o--o{ T_GS_ATENDIMENTO : "é acionado"
+    T_GS_OCORRENCIA ||--o| T_GS_OCORRENCIA_CONTROLE : "apoio da API"
+    T_GS_OCORRENCIA ||--o{ T_GS_NOTIFICACAO_PONTO : "apoio da API"
+    T_GS_PONTO_ENERGIA ||--o{ T_GS_NOTIFICACAO_PONTO : "é avisado"
+    T_GS_PACIENTE ||--o| T_GS_PLANO_CONTINGENCIA : "apoio da API"
 ```
+
+Os pacotes e gatilhos do banco continuam valendo sobre os dados gravados pela API:
+- A trilha `TRG_T_GS_AUDITORIA_OCORRENCIA` registra cada abertura, atualização e encerramento feito pela API.
+- `TRG_T_GS_UPDATE_BATERIA` recalcula o score quando a API atualiza a bateria. A entidade usa `@DynamicUpdate`, então o gatilho só dispara quando `qt_bateria_min` muda de fato.
 
 ## Como rodar
 
-O primeiro start cria as tabelas e carrega os dados de teste automaticamente: usuários, 3 pacientes, aparelhos e 5 pontos de energia.
+O primeiro start cria as tabelas e carrega **os mesmos dados do script Oracle da disciplina**: 5 usuários, 5 pacientes, 5 equipamentos, 5 pontos de energia, 5 ocorrências e 5 atendimentos.
 
 ### Opção 1: Docker (recomendado)
 
@@ -121,12 +163,13 @@ Pré-requisitos: JDK 21+, PostgreSQL 14+ e RabbitMQ 3.12+ rodando localmente.
 
 ### Opção 3: Oracle (banco da disciplina)
 
-1. Rode o script principal da equipe de banco e depois [`scripts/oracle-complemento-api-java.sql`](scripts/oracle-complemento-api-java.sql).
-2. Suba com o perfil `oracle`:
+1. No Oracle, rode o script da disciplina de banco (`GSBancoOracle.sql`) e depois [`scripts/oracle-complemento-api-java.sql`](scripts/oracle-complemento-api-java.sql), que cria as 4 tabelas de apoio.
+2. Suba com o perfil `oracle` (`ddl-auto=none`: a API não cria nem altera tabelas no Oracle):
    ```bash
    SPRING_PROFILES_ACTIVE=oracle ORACLE_URL=jdbc:oracle:thin:@oracle.fiap.com.br:1521:ORCL DB_USER=<rm> DB_PASSWORD=<senha> ./mvnw spring-boot:run
    ```
-   Na primeira subida, os pacientes do script sem dono são associados a `cuidador@luzvital.com`.
+
+Na primeira subida, as senhas fictícias da carga (`hash_carlos123`...) dos 5 usuários são trocadas pelo hash BCrypt das senhas de teste abaixo, para permitir o login.
 
 ### Variáveis de ambiente
 
@@ -145,11 +188,15 @@ Nenhuma credencial real fica no repositório.
 
 ## Usuários de teste
 
-| Papel | E-mail | Senha | Dados |
-|---|---|---|---|
-| GESTOR | `gestor@luzvital.com` | `Gestor@123` | Vê a fila, registra atendimentos, gerencia pontos de energia e gestores |
-| CUIDADOR | `cuidador@luzvital.com` | `Cuidador@123` | Maria Oliveira (ventilador Trilogy Evo, 15 h de bateria) e João Santos (concentrador EverFlo, **sem bateria**) |
-| CUIDADOR | `cuidador2@luzvital.com` | `Cuidador@123` | Carlos Eduardo (só bomba de infusão, que **não** é de suporte à vida: serve para o teste negativo de abertura) |
+São os mesmos usuários do script Oracle da disciplina de banco. Senha dos cuidadores: `Cuidador@123`. Senha dos gestores: `Gestor@123`.
+
+| Papel | E-mail | Paciente e aparelho (carga do banco) |
+|---|---|---|
+| CUIDADOR | `carlos.silva@gmail.com` | João Carlos Silva: ventilador Philips Trilogy Evo, 900 min de bateria |
+| CUIDADOR | `mariana.rocha@hotmail.com` | Maria Aparecida Rocha: concentrador EverFlo **sem bateria** (ocorrência aberta) |
+| CUIDADOR | `roberto.ferreira@outlook.com` | Pedro Henrique Ferreira: só bomba de infusão, que **não** é de suporte à vida (teste negativo de abertura) |
+| GESTOR | `luciana.mendes@defesacivil.sp.gov.br` | Defesa Civil: vê a fila, registra atendimentos, gerencia pontos e gestores |
+| GESTOR | `fernando.souza@enel.com.br` | Distribuidora: mesmo acesso de gestor |
 
 Para usar no Swagger, chame `POST /auth/login`, copie o `token`, clique em **Authorize** e cole o token.
 
@@ -170,11 +217,11 @@ Todas as listagens são paginadas: `?page=0&size=10&sort=campo,asc`. A resposta 
 | `POST /pacientes/{id}/plano-contingencia` | dono | Pede um novo plano (202, assíncrono) |
 | `GET/POST /pontos-energia`, `GET/PUT/DELETE /pontos-energia/{id}` | todos leem · GESTOR escreve | Rede de pontos de energia |
 | `POST /ocorrencias` | CUIDADOR | **Estou sem luz** (cabeçalho `Idempotency-Key`) e publica `energia.caiu` |
-| `GET /ocorrencias`, `GET /ocorrencias/{id}` | dono · GESTOR | Ocorrências com contagem regressiva e pontos avisados |
+| `GET /ocorrencias`, `GET /ocorrencias/{id}` | dono · GESTOR | Ocorrências com contagem regressiva, atendimentos e pontos avisados |
 | `GET /ocorrencias/fila` | **GESTOR** | **Fila ordenada pelos minutos de bateria restantes** |
 | `PATCH /ocorrencias/{id}/bateria` | dono · GESTOR | Informa a bateria atual e recalcula a prioridade |
-| `POST /ocorrencias/{id}/atendimentos` | **GESTOR** | Registra gerador, recarga, remoção ou religação |
-| `POST /ocorrencias/{id}/encerramento` | dono · GESTOR | Encerra (ATENDIDO) |
+| `POST /ocorrencias/{id}/atendimentos` | **GESTOR** | Registra o socorro: `GERADOR_MOVEL`, `RECARGA_BATERIA`, `REMOCAO_UTI` ou `RELIGACAO_PRIORITARIA` |
+| `POST /ocorrencias/{id}/encerramento` | dono · GESTOR | Encerra (ATENDIDO), anexando o desfecho à observação como `PR_T_GS_ENCERRAR_OCORRENCIA` |
 | `POST /ocorrencias/{id}/cancelamento` | dono · GESTOR | Cancela (por exemplo, a energia voltou) |
 | `GET /ocorrencias/indicadores` | **GESTOR** | Tempo médio de atendimento, % resolvidas antes do fim da bateria, pontos por bairro |
 | `POST /usuarios/gestores`, `GET /usuarios` | **GESTOR** | Só um gestor cria outro gestor |
@@ -200,26 +247,30 @@ Vale para todos os erros: 400, 401, 403, 404, 409, 422, 503 e 500.
 
 ## Roteiro de teste (ponta a ponta)
 
-1. `POST /auth/login` como **cuidador**. Depois `GET /pacientes`: aparecem só Maria e João.
-2. `GET /pacientes/2/plano-contingencia`: o plano gerado na carga inicial, com `origem` igual a `IA` quando há chave, ou `REGRAS` quando não há.
-3. `POST /equipamentos` com `potenciaWatts: 0` devolve **400** com os campos inválidos.
-4. `POST /ocorrencias` com `{"pacienteId": 2}` e `Idempotency-Key: 3f1c...` devolve **201**. Repetir a mesma chave devolve **200** com a mesma ocorrência. Repetir sem chave devolve **409**.
-5. `POST /ocorrencias` com `{"pacienteId": 1}` devolve **201**.
-6. `GET /ocorrencias/fila` como cuidador devolve **403**.
-7. Login como **gestor** e `GET /ocorrencias/fila`: João vem primeiro (0 min, concentrador sem bateria), depois Maria (900 min), e as duas aparecem com `priorizada: true` (o consumidor do RabbitMQ processou o evento).
-8. `GET /ocorrencias/{id}` mostra os `pontosNotificados` com a distância em km.
-9. `POST /ocorrencias/{id}/atendimentos` com `{"tipo":"GERADOR","descricao":"...","pontoEnergiaId":1}` muda o status para `EM_ATENDIMENTO`.
-10. `POST /ocorrencias/{id}/encerramento` devolve 200. Encerrar de novo devolve **409**.
-11. Login como **cuidador2** e `POST /ocorrencias` com `{"pacienteId": 3}` devolve **422** (nenhum aparelho de suporte à vida).
+1. Login como **gestora** (`luciana.mendes@defesacivil.sp.gov.br`) e `GET /ocorrencias/fila`.
+   - As 3 ocorrências ativas da carga aparecem nesta ordem: Maria (concentrador, 0 min), Ana (aspirador, 0 min) e José (ventilador).
+   - Todas vêm com `priorizada: true`: o consumidor do RabbitMQ processou o evento.
+2. Login como **Mariana** e `GET /ocorrencias/1`: os `pontosNotificados` mostram o ponto do bairro Bela Vista, e o atendimento `GERADOR_MOVEL` da carga aparece.
+3. Login como **Carlos** e `GET /pacientes`: aparece só o João. Em `GET /pacientes/2` (paciente da Mariana), a resposta é **403**.
+4. `GET /pacientes/1/plano-contingencia` traz o plano gerado na carga inicial, com `origem` igual a `IA` quando há chave, ou `REGRAS` quando não há.
+5. `POST /equipamentos` com `potenciaWatts: 0` devolve **400** com os campos inválidos.
+6. `POST /ocorrencias` com `{"pacienteId": 1}` e `Idempotency-Key: 3f1c...` devolve **201**.
+   - Repetir com a mesma chave devolve **200** com a mesma ocorrência.
+   - Repetir sem chave devolve **409**.
+7. `PATCH /ocorrencias/{id}/bateria` com `{"minutosRestantes": 45}` devolve o score 1015 e faz o João subir na fila.
+8. Como gestora, `POST /ocorrencias/{id}/atendimentos` com `{"tipoSocorro":"REMOCAO_UTI","descricao":"...","pontoEnergiaId":2}` muda o status para `EM_ATENDIMENTO`.
+9. `POST /ocorrencias/{id}/encerramento` devolve 200. Encerrar de novo devolve **409**.
+10. Login como **Roberto** e `POST /ocorrencias` com `{"pacienteId": 3}` devolve **422** (nenhum aparelho de suporte à vida).
+11. Como Carlos, `GET /ocorrencias/fila` devolve **403**.
 12. No painel do RabbitMQ (http://localhost:15672), em *Queues*, aparecem as filas `luzvital.energia-caiu` e `luzvital.plano-contingencia` com consumidores.
 
 ## Como cada requisito foi atendido
 
 | # | Requisito | Onde está |
 |---|---|---|
-| 01 | API REST, 3+ entidades relacionadas, CRUD, paginação | Entidades `Usuario`, `Paciente`, `Equipamento`, `PontoEnergia`, `Ocorrencia`, `Atendimento`, `NotificacaoPonto` e `PlanoContingencia` (pacote `domain`). Paciente 1:N Equipamento; Ocorrência N:1 Paciente; Ocorrência 1:N Atendimento. CRUD completo de pacientes, equipamentos e pontos; todas as listagens paginadas |
-| 02 | Bean Validation nos DTOs + `@RestControllerAdvice` | Records no pacote `dto` (CPF, CEP, UF, telefone, coordenadas, potência > 0, autonomia ≥ 0...). `exception/GlobalExceptionHandler` e `security/ErroSegurancaHandler` (401/403 no mesmo formato) |
-| 03 | Spring Security + JWT, 2 papéis, rotas por papel | `config/SecurityConfig` (regras por rota + `@PreAuthorize`), `security/JwtService`. O cuidador só acessa os próprios pacientes (`service/Acesso`). Logout revoga o token |
+| 01 | API REST, 3+ entidades relacionadas, CRUD, paginação | 6 entidades mapeadas nas tabelas `T_GS_*` do banco da disciplina (pacote `domain`): Usuário 1:N Paciente 1:N Equipamento; Paciente 1:N Ocorrência 1:N Atendimento N:1 Ponto de energia. CRUD completo de pacientes, equipamentos e pontos; todas as listagens paginadas |
+| 02 | Bean Validation nos DTOs + `@RestControllerAdvice` | Records no pacote `dto` (CPF, CEP, UF, telefone, e-mail, potência > 0, autonomia ≥ 0, tipos de socorro da constraint...). `exception/GlobalExceptionHandler` e `security/ErroSegurancaHandler` (401/403 no mesmo formato) |
+| 03 | Spring Security + JWT, 2 papéis, rotas por papel | `config/SecurityConfig` (regras por rota + `@PreAuthorize`), `security/JwtService`. O cuidador só acessa os próprios pacientes (`service/Acesso`). Usuário inativo (`st_usuario = 'N'`) não entra. Logout revoga o token |
 | 04 | Spring AI integrado ao fluxo | `ia/IaService`: (1) **plano de contingência** gerado ao salvar um aparelho, com saída estruturada em `PlanoGerado` (etapas por faixa de tempo, contatos, sinais de alerta); (2) **leitura da etiqueta por foto** (multimodal), com potência estimada por V × A. Guarda-corpos: sem orientação clínica, sem nome ou CPF no prompt (LGPD), 192 e 193 sempre presentes, e plano por regras quando a IA falha |
 | 05 | Arquitetura distribuída: **opção A (RabbitMQ)** | `messaging/RabbitConfig` (exchange topic, filas, DLQ), `EventoPublisher` (pós-commit), `EventoConsumidor` (`energia.caiu` e `plano.solicitado`), `ReprocessamentoJob` |
 | 06 | Swagger, README e integração com o Mobile | `/swagger-ui.html` com Bearer configurado, este README e a seção de integração abaixo |
@@ -229,13 +280,15 @@ Vale para todos os erros: 400, 401, 403, 404, 409, 422, 503 e 500.
 **App React Native (Axios)**
 - Cabeçalho: `Authorization: Bearer <token>` (o token vem de `/auth/login` ou de `/auth/cadastro`).
 - URL base: no emulador Android use `http://10.0.2.2:8080`; no celular físico, use o IP da máquina na rede (`http://192.168.x.x:8080`) ou o deploy.
+- Paciente: `{nome, cpf, endereco, bairro, cidade, uf, cep, telefone}`.
+- Aparelho: `{pacienteId, tipoAparelho, fabricante, modelo, potenciaWatts, autonomiaMinutos, suporteVida, fonteReserva}`.
 - "Estou sem luz": gere um UUID por toque, guarde-o na fila offline e reenvie **com a mesma** `Idempotency-Key`. Assim o reenvio nunca duplica a ocorrência.
 - Plano de contingência: `GET /pacientes/{id}/plano-contingencia`. Se o `status` for `GERANDO`, consulte de novo em alguns segundos. Salve o plano no aparelho para uso offline.
 - Cadastro por foto: envie `multipart/form-data` com o campo `foto` (JPEG, PNG ou WEBP, até 5 MB), mostre os dados para o cuidador confirmar e depois chame `POST /equipamentos`.
 
 **API .NET (mesmo JWT)**
 - Algoritmo HS256 com a chave `JWT_SECRET` (a mesma nas duas APIs). Valide `iss = luz-vital-api` e `aud = luz-vital-app`.
-- Claims: `sub` (id do usuário), `email`, `nome`, `role` (`CUIDADOR` ou `GESTOR`), `jti`, `exp`.
+- Claims: `sub` (id do usuário em `T_GS_USUARIO`), `email`, `nome`, `role` (`CUIDADOR` ou `GESTOR`), `jti`, `exp`.
 - Para avisar a API Java de uma ocorrência, chame `POST /ocorrencias` repassando o token do usuário e a mesma `Idempotency-Key`. A Java publica `energia.caiu`.
 - Health check: `GET /actuator/health`.
 
@@ -245,7 +298,14 @@ Vale para todos os erros: 400, 401, 403, 404, 409, 422, 503 e 500.
 ./mvnw test
 ```
 
-São 20 testes: regra de prioridade e fila, contagem regressiva, haversine, conversão da etiqueta (potência estimada), Spring AI com um `ChatModel` simulado (saída estruturada e guarda-corpos), e testes de integração com MockMvc (401/403 no formato padrão, validação, publicação de `energia.caiu`, idempotência, 409 e 422). Os testes usam H2 em memória e não precisam de Docker.
+São 27 testes:
+- **Regras:** score igual ao de `FN_T_GS_CALCULA_PRIORIDADE`, fila, contagem regressiva e códigos gravados no banco (constraints com acento).
+- **Etiqueta:** potência estimada por V × A.
+- **Spring AI:** `ChatModel` simulado, com saída estruturada e guarda-corpos.
+- **Integração com MockMvc:** 401/403 no formato padrão, validação, publicação de `energia.caiu`, idempotência, 409 e 422.
+- **`OracleModeloBancoTest`:** roda a API sobre **o DDL e a carga originais do `GSBancoOracle.sql`** (H2 em modo Oracle, `ddl-auto=none`) mais o script das tabelas de apoio. Prova que login, fila, atendimentos com constraint, bateria, idempotência, CRUD, plano e logout funcionam no modelo do banco sem alterá-lo.
+
+Os testes usam H2 em memória e não precisam de Docker.
 
 ## Declaração de uso de IA
 
