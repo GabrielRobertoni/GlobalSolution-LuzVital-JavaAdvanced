@@ -8,7 +8,7 @@ import br.com.fiap.luzvital.domain.Atendimento;
 
 public interface AtendimentoRepository extends JpaRepository<Atendimento, Long> {
 
-    List<Atendimento> findByOcorrenciaIdOrderByDataRegistroAsc(Long ocorrenciaId);
+    List<Atendimento> findByOcorrenciaIdOrderByDataAtendimentoAsc(Long ocorrenciaId);
 
     boolean existsByPontoEnergiaId(Long pontoId);
 }

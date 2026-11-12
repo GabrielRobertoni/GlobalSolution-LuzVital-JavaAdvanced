@@ -26,8 +26,6 @@ public interface PacienteRepository extends JpaRepository<Paciente, Long> {
 
     boolean existsByCpf(String cpf);
 
-    java.util.List<Paciente> findByCuidadorIsNull();
-
     boolean existsByCpfAndIdNot(String cpf, Long id);
 
     /** Trava a linha do paciente: dois toques simultâneos em "Estou sem luz" são processados em fila. */

@@ -3,9 +3,8 @@ package br.com.fiap.luzvital.domain;
 import java.time.LocalDateTime;
 
 import jakarta.persistence.Column;
+import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -14,56 +13,50 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
-/** Ação registrada pelo gestor em uma ocorrência (uma ocorrência tem vários atendimentos). */
+/** Tabela T_GS_ATENDIMENTO do banco da disciplina: socorro registrado pelo gestor (uma ocorrência tem vários). */
 @Entity
-@Table(name = "ATENDIMENTO")
+@Table(name = "T_GS_ATENDIMENTO")
 public class Atendimento {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ID_ATENDIMENTO")
+    @Column(name = "id_atendimento")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "ID_OCORRENCIA")
+    @JoinColumn(name = "id_ocorrencia", nullable = false)
     private Ocorrencia ocorrencia;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "ID_USUARIO_GESTOR")
-    private Usuario gestor;
-
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ID_PONTO")
+    @JoinColumn(name = "id_ponto")
     private PontoEnergia pontoEnergia;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "TIPO_ATENDIMENTO", nullable = false, length = 30)
-    private TipoAtendimento tipo;
+    @Convert(converter = TipoSocorro.Conversor.class)
+    @Column(name = "tp_socorro", nullable = false, length = 50)
+    private TipoSocorro tipoSocorro;
 
-    @Column(name = "DESCRICAO", nullable = false, length = 500)
+    @Column(name = "ds_atendimento", nullable = false, length = 1000)
     private String descricao;
 
-    @Column(name = "DATA_REGISTRO", nullable = false)
-    private LocalDateTime dataRegistro;
+    @Column(name = "dh_atendimento", nullable = false)
+    private LocalDateTime dataAtendimento;
 
     protected Atendimento() {
     }
 
-    public Atendimento(Ocorrencia ocorrencia, Usuario gestor, PontoEnergia pontoEnergia, TipoAtendimento tipo,
-                       String descricao, LocalDateTime dataRegistro) {
+    public Atendimento(Ocorrencia ocorrencia, PontoEnergia pontoEnergia, TipoSocorro tipoSocorro, String descricao,
+                       LocalDateTime dataAtendimento) {
         this.ocorrencia = ocorrencia;
-        this.gestor = gestor;
         this.pontoEnergia = pontoEnergia;
-        this.tipo = tipo;
+        this.tipoSocorro = tipoSocorro;
         this.descricao = descricao;
-        this.dataRegistro = dataRegistro;
+        this.dataAtendimento = dataAtendimento;
     }
 
     public Long getId() { return id; }
     public Ocorrencia getOcorrencia() { return ocorrencia; }
-    public Usuario getGestor() { return gestor; }
     public PontoEnergia getPontoEnergia() { return pontoEnergia; }
-    public TipoAtendimento getTipo() { return tipo; }
+    public TipoSocorro getTipoSocorro() { return tipoSocorro; }
     public String getDescricao() { return descricao; }
-    public LocalDateTime getDataRegistro() { return dataRegistro; }
+    public LocalDateTime getDataAtendimento() { return dataAtendimento; }
 }

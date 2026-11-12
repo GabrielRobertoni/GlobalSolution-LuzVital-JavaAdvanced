@@ -1,11 +1,13 @@
 package br.com.fiap.luzvital.domain;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
@@ -21,55 +23,48 @@ import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
-/** Tabela PACIENTE do script Oracle, com o cuidador dono do cadastro e coordenadas opcionais. */
+/** Tabela T_GS_PACIENTE do banco da disciplina. Um cuidador (T_GS_USUARIO) tem vários pacientes. */
 @Entity
-@Table(name = "PACIENTE")
+@Table(name = "T_GS_PACIENTE")
 public class Paciente {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ID_PACIENTE")
+    @Column(name = "id_paciente")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "ID_USUARIO")
+    @JoinColumn(name = "id_usuario", nullable = false)
     private Usuario cuidador;
 
-    @Column(name = "NOME", nullable = false, length = 100)
+    @Column(name = "nm_paciente", nullable = false, length = 120)
     private String nome;
 
-    @Column(name = "CPF", nullable = false, unique = true, length = 14)
+    @Column(name = "nr_cpf", nullable = false, unique = true, length = 14)
     private String cpf;
 
-    @Column(name = "LOGRADOURO", nullable = false, length = 150)
-    private String logradouro;
+    @Column(name = "ds_endereco", nullable = false, length = 200)
+    private String endereco;
 
-    @Column(name = "NUMERO", nullable = false, length = 20)
-    private String numero;
-
-    @Column(name = "BAIRRO", nullable = false, length = 50)
+    @Column(name = "nm_bairro", nullable = false, length = 80)
     private String bairro;
 
-    @Column(name = "CIDADE", nullable = false, length = 50)
+    @Column(name = "nm_cidade", nullable = false, length = 80)
     private String cidade;
 
-    @Column(name = "UF", nullable = false, length = 2)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "sg_estado", nullable = false, length = 2)
     private String uf;
 
-    @Column(name = "CEP", nullable = false, length = 9)
+    @Column(name = "nr_cep", nullable = false, length = 9)
     private String cep;
 
-    @Column(name = "CONTATO_CUIDADOR", nullable = false, length = 20)
-    private String contatoCuidador;
+    /** Telefone de contato do paciente/cuidador em emergência. */
+    @Column(name = "nr_telefone", nullable = false, length = 25)
+    private String telefone;
 
-    @Column(name = "LATITUDE", precision = 9, scale = 6)
-    private BigDecimal latitude;
-
-    @Column(name = "LONGITUDE", precision = 9, scale = 6)
-    private BigDecimal longitude;
-
-    @Column(name = "DATA_CADASTRO", nullable = false)
-    private LocalDateTime dataCadastro;
+    @Column(name = "dt_criacao", nullable = false)
+    private LocalDateTime dataCriacao;
 
     @OneToMany(mappedBy = "paciente", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Equipamento> equipamentos = new ArrayList<>();
@@ -86,29 +81,21 @@ public class Paciente {
 
     @PrePersist
     void aoCriar() {
-        if (dataCadastro == null) {
-            dataCadastro = LocalDateTime.now();
+        if (dataCriacao == null) {
+            dataCriacao = LocalDateTime.now();
         }
     }
 
-    public void atualizar(String nome, String cpf, String logradouro, String numero, String bairro, String cidade,
-                          String uf, String cep, String contatoCuidador, BigDecimal latitude, BigDecimal longitude) {
+    public void atualizar(String nome, String cpf, String endereco, String bairro, String cidade, String uf,
+                          String cep, String telefone) {
         this.nome = nome;
         this.cpf = cpf;
-        this.logradouro = logradouro;
-        this.numero = numero;
+        this.endereco = endereco;
         this.bairro = bairro;
         this.cidade = cidade;
         this.uf = uf;
         this.cep = cep;
-        this.contatoCuidador = contatoCuidador;
-        this.latitude = latitude;
-        this.longitude = longitude;
-    }
-
-    /** Usado só na carga inicial, para dar dono aos pacientes vindos do script Oracle. */
-    public void definirCuidador(Usuario cuidador) {
-        this.cuidador = cuidador;
+        this.telefone = telefone;
     }
 
     public boolean pertenceA(Long usuarioId) {
@@ -120,9 +107,13 @@ public class Paciente {
         return equipamentos.stream().filter(Equipamento::isSuporteVida).toList();
     }
 
+    public boolean possuiSuporteVida() {
+        return equipamentos.stream().anyMatch(Equipamento::isSuporteVida);
+    }
+
     /**
-     * Aparelho crítico: o de suporte à vida com menor autonomia. No empate de autonomia,
-     * ventilador vem antes de concentrador (regra de prioridade da documentação).
+     * Aparelho crítico: o de suporte à vida com menor autonomia (mesma regra de FN_T_GS_MINUTOS_RESTANTES).
+     * No empate de autonomia, ventilador vem antes de concentrador.
      */
     public Optional<Equipamento> equipamentoCritico() {
         return equipamentosSuporteVida().stream()
@@ -136,24 +127,17 @@ public class Paciente {
                 .anyMatch(e -> e.getFonteReserva() != null && e.getFonteReserva() != FonteReserva.NENHUMA);
     }
 
-    public boolean possuiCoordenadas() {
-        return latitude != null && longitude != null;
-    }
-
     public Long getId() { return id; }
     public Usuario getCuidador() { return cuidador; }
     public String getNome() { return nome; }
     public String getCpf() { return cpf; }
-    public String getLogradouro() { return logradouro; }
-    public String getNumero() { return numero; }
+    public String getEndereco() { return endereco; }
     public String getBairro() { return bairro; }
     public String getCidade() { return cidade; }
-    public String getUf() { return uf; }
+    public String getUf() { return uf == null ? null : uf.trim(); }
     public String getCep() { return cep; }
-    public String getContatoCuidador() { return contatoCuidador; }
-    public BigDecimal getLatitude() { return latitude; }
-    public BigDecimal getLongitude() { return longitude; }
-    public LocalDateTime getDataCadastro() { return dataCadastro; }
+    public String getTelefone() { return telefone; }
+    public LocalDateTime getDataCriacao() { return dataCriacao; }
     public List<Equipamento> getEquipamentos() { return equipamentos; }
     public PlanoContingencia getPlano() { return plano; }
     public void setPlano(PlanoContingencia plano) { this.plano = plano; }

@@ -19,21 +19,23 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 
 /**
- * Tabela OCORRENCIA do script Oracle: aberta no "Estou sem luz".
+ * Tabela T_GS_OCORRENCIA do banco da disciplina: aberta no "Estou sem luz".
  * <p>
- * BATERIA_INICIAL_MIN guarda os minutos de bateria informados em DATA_BATERIA (na abertura, a menor
- * autonomia entre os aparelhos de suporte à vida). Os minutos restantes são sempre calculados na hora:
- * BATERIA_INICIAL_MIN menos o tempo decorrido desde DATA_BATERIA.
+ * qt_bateria_min guarda os minutos de bateria informados (na abertura, a menor autonomia entre os
+ * aparelhos de suporte à vida, como em PR_T_GS_ABRIR_OCORRENCIA). Os minutos restantes são calculados
+ * na hora, descontando o tempo desde o momento em que a bateria foi informada (dh_inicio, ou a última
+ * atualização registrada em T_GS_OCORRENCIA_CONTROLE).
  * <p>
- * {@code @DynamicUpdate}: o UPDATE só leva as colunas alteradas. Assim o gatilho Oracle
- * TRG_UPDATE_BATERIA_PRIORIDADE só dispara quando a bateria muda de fato.
+ * {@code @DynamicUpdate}: o UPDATE leva só as colunas alteradas, então o gatilho TRG_T_GS_UPDATE_BATERIA
+ * (BEFORE UPDATE OF qt_bateria_min) só dispara quando a bateria muda de fato.
  */
 @Entity
-@Table(name = "OCORRENCIA")
+@Table(name = "T_GS_OCORRENCIA")
 @DynamicUpdate
 public class Ocorrencia {
 
@@ -41,85 +43,98 @@ public class Ocorrencia {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ID_OCORRENCIA")
+    @Column(name = "id_ocorrencia")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "ID_PACIENTE")
+    @JoinColumn(name = "id_paciente", nullable = false)
     private Paciente paciente;
 
-    @Column(name = "DATA_INICIO", nullable = false)
+    @Column(name = "dh_inicio", nullable = false)
     private LocalDateTime dataInicio;
 
-    @Column(name = "DATA_FIM")
+    @Column(name = "dh_fim")
     private LocalDateTime dataFim;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "STATUS", nullable = false, length = 20)
+    @Column(name = "st_ocorrencia", nullable = false, length = 20)
     private StatusOcorrencia status;
 
-    @Column(name = "BATERIA_INICIAL_MIN", nullable = false)
-    private Integer bateriaInicialMin;
+    @Column(name = "qt_bateria_min", nullable = false)
+    private Integer bateriaMinutos;
 
-    @Column(name = "DATA_BATERIA", nullable = false)
-    private LocalDateTime dataBateria;
-
-    @Column(name = "PRIORIDADE_SCORE", nullable = false)
+    @Column(name = "vl_score_prioridade", nullable = false)
     private Integer prioridadeScore;
 
-    @Column(name = "OBSERVACAO", length = TAMANHO_OBSERVACAO)
+    @Column(name = "ds_observacao", length = TAMANHO_OBSERVACAO)
     private String observacao;
 
-    /** Chave enviada pelo app no cabeçalho Idempotency-Key: o mesmo toque reenviado não cria outra ocorrência. */
-    @Column(name = "CHAVE_IDEMPOTENCIA", unique = true, length = 100)
-    private String chaveIdempotencia;
-
-    /** Preenchida pelo consumidor do evento energia.caiu quando calcula a prioridade e avisa os pontos. */
-    @Column(name = "DATA_PRIORIZACAO")
-    private LocalDateTime dataPriorizacao;
+    /** Dados de controle da API (idempotência, horário da bateria, priorização). Pode não existir em registros da carga do banco. */
+    @OneToOne(mappedBy = "ocorrencia", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private OcorrenciaControle controle;
 
     @OneToMany(mappedBy = "ocorrencia", cascade = CascadeType.ALL)
-    @OrderBy("dataRegistro ASC")
+    @OrderBy("dataAtendimento ASC")
     private List<Atendimento> atendimentos = new ArrayList<>();
 
     @OneToMany(mappedBy = "ocorrencia", cascade = CascadeType.ALL)
-    @OrderBy("distanciaKm ASC")
+    @OrderBy("dataEnvio ASC")
     private List<NotificacaoPonto> notificacoes = new ArrayList<>();
 
     protected Ocorrencia() {
     }
 
+    /** Abertura pelo "Estou sem luz": score 0 até o consumidor do evento energia.caiu priorizar. */
     public static Ocorrencia abrir(Paciente paciente, int bateriaMinutos, String observacao, String chaveIdempotencia,
                                    LocalDateTime agora) {
-        Ocorrencia o = new Ocorrencia();
-        o.paciente = paciente;
-        o.dataInicio = agora;
-        o.dataBateria = agora;
-        o.bateriaInicialMin = bateriaMinutos;
-        o.status = StatusOcorrencia.EM_ABERTO;
-        o.prioridadeScore = 0;
-        o.observacao = observacao;
-        o.chaveIdempotencia = chaveIdempotencia;
+        Ocorrencia o = registrar(paciente, StatusOcorrencia.EM_ABERTO, bateriaMinutos, 0, observacao, agora);
+        o.controle = new OcorrenciaControle(o, chaveIdempotencia, agora);
         return o;
     }
 
+    /** Registro direto (carga inicial espelhada do script do banco). */
+    public static Ocorrencia registrar(Paciente paciente, StatusOcorrencia status, int bateriaMinutos, int score,
+                                       String observacao, LocalDateTime inicio) {
+        Ocorrencia o = new Ocorrencia();
+        o.paciente = paciente;
+        o.dataInicio = inicio;
+        o.status = status;
+        o.bateriaMinutos = bateriaMinutos;
+        o.prioridadeScore = score;
+        o.observacao = observacao;
+        return o;
+    }
+
+    /** Momento em que qt_bateria_min foi informada. */
+    public LocalDateTime referenciaBateria() {
+        return controle != null && controle.getDataBateria() != null ? controle.getDataBateria() : dataInicio;
+    }
+
     public int minutosRestantes(LocalDateTime agora) {
-        long decorridos = Math.max(0, Duration.between(dataBateria, agora).toMinutes());
-        return (int) Math.max(0, bateriaInicialMin - decorridos);
+        long decorridos = Math.max(0, Duration.between(referenciaBateria(), agora).toMinutes());
+        return (int) Math.max(0, bateriaMinutos - decorridos);
     }
 
     public LocalDateTime previsaoEsgotamento() {
-        return dataBateria.plusMinutes(bateriaInicialMin);
+        return referenciaBateria().plusMinutes(bateriaMinutos);
     }
 
     public void atualizarBateria(int minutosRestantes, LocalDateTime agora) {
-        this.bateriaInicialMin = minutosRestantes;
-        this.dataBateria = agora;
+        this.bateriaMinutos = minutosRestantes;
+        garantirControle(agora).registrarBateria(agora);
     }
 
     public void aplicarPrioridade(int score, LocalDateTime agora) {
         this.prioridadeScore = score;
-        this.dataPriorizacao = agora;
+        garantirControle(agora).registrarPriorizacao(agora);
+    }
+
+    private OcorrenciaControle garantirControle(LocalDateTime agora) {
+        if (controle == null) {
+            // Ocorrência vinda da carga do banco: a bateria foi informada na abertura
+            controle = new OcorrenciaControle(this, null, dataInicio);
+        }
+        return controle;
     }
 
     public void registrarAtendimento(Atendimento atendimento) {
@@ -137,10 +152,16 @@ public class Ocorrencia {
         finalizar(StatusOcorrencia.CANCELADO, "Cancelamento: " + motivo, agora);
     }
 
+    /** Usado na carga inicial para registrar ocorrências já finalizadas. */
+    public void finalizarEm(StatusOcorrencia novoStatus, LocalDateTime fim) {
+        this.status = novoStatus;
+        this.dataFim = fim;
+    }
+
     private void finalizar(StatusOcorrencia novoStatus, String texto, LocalDateTime agora) {
         this.status = novoStatus;
         this.dataFim = agora;
-        // Mesmo formato do PRC_ENCERRAR_OCORRENCIA: a observação final é anexada à inicial
+        // Mesmo formato de PR_T_GS_ENCERRAR_OCORRENCIA: o desfecho é anexado à observação
         String completa = (observacao == null || observacao.isBlank()) ? texto : observacao + " | " + texto;
         this.observacao = completa.length() > TAMANHO_OBSERVACAO ? completa.substring(0, TAMANHO_OBSERVACAO) : completa;
     }
@@ -149,8 +170,12 @@ public class Ocorrencia {
         return status != null && status.ativa();
     }
 
+    /** Já passou pelo consumidor de energia.caiu (ou veio da carga do banco com score calculado). */
     public boolean isPriorizada() {
-        return dataPriorizacao != null;
+        if (controle == null) {
+            return prioridadeScore != null && prioridadeScore > 0;
+        }
+        return controle.getDataPriorizacao() != null;
     }
 
     public Long getId() { return id; }
@@ -158,12 +183,10 @@ public class Ocorrencia {
     public LocalDateTime getDataInicio() { return dataInicio; }
     public LocalDateTime getDataFim() { return dataFim; }
     public StatusOcorrencia getStatus() { return status; }
-    public Integer getBateriaInicialMin() { return bateriaInicialMin; }
-    public LocalDateTime getDataBateria() { return dataBateria; }
+    public Integer getBateriaMinutos() { return bateriaMinutos; }
     public Integer getPrioridadeScore() { return prioridadeScore; }
     public String getObservacao() { return observacao; }
-    public String getChaveIdempotencia() { return chaveIdempotencia; }
-    public LocalDateTime getDataPriorizacao() { return dataPriorizacao; }
+    public OcorrenciaControle getControle() { return controle; }
     public List<Atendimento> getAtendimentos() { return atendimentos; }
     public List<NotificacaoPonto> getNotificacoes() { return notificacoes; }
 }

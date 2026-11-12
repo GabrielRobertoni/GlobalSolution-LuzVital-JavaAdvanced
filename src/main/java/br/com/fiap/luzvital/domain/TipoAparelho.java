@@ -1,8 +1,10 @@
 package br.com.fiap.luzvital.domain;
 
+import jakarta.persistence.Converter;
+
 /**
- * Tipos de aparelho de uso contínuo. A ordem de desempate da fila vem de {@link #ordemDesempate()}:
- * no empate de minutos restantes, ventilador vem antes de concentrador.
+ * Tipos de aparelho de uso contínuo (coluna tp_aparelho). No empate de minutos restantes da fila,
+ * ventilador vem antes de concentrador ({@link #ordemDesempate()}).
  */
 public enum TipoAparelho {
     VENTILADOR_MECANICO(0),
@@ -21,5 +23,13 @@ public enum TipoAparelho {
 
     public int ordemDesempate() {
         return ordemDesempate;
+    }
+
+    /** Lê 'ASPIRADOR_SECREÇÃO' (carga Oracle) como ASPIRADOR_SECRECAO; valor desconhecido vira OUTRO. */
+    @Converter
+    public static class Conversor extends CodigoBanco<TipoAparelho> {
+        public Conversor() {
+            super(TipoAparelho.class, OUTRO);
+        }
     }
 }

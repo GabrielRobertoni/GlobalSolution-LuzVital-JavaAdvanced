@@ -1,64 +1,78 @@
 package br.com.fiap.luzvital.domain;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Convert;
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
-/** Tabela EQUIPAMENTO do script Oracle. Um paciente tem vários equipamentos. */
+/** Tabela T_GS_EQUIPAMENTO do banco da disciplina. Um paciente tem vários equipamentos. */
 @Entity
-@Table(name = "EQUIPAMENTO")
+@Table(name = "T_GS_EQUIPAMENTO")
 public class Equipamento {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
-    @Column(name = "ID_EQUIPAMENTO")
+    @Column(name = "id_equipamento")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "ID_PACIENTE")
+    @JoinColumn(name = "id_paciente", nullable = false)
     private Paciente paciente;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "TIPO_APARELHO", nullable = false, length = 50)
+    @Convert(converter = TipoAparelho.Conversor.class)
+    @Column(name = "tp_aparelho", nullable = false, length = 50)
     private TipoAparelho tipoAparelho;
 
-    @Column(name = "FABRICANTE", nullable = false, length = 50)
+    @Column(name = "nm_fabricante", nullable = false, length = 80)
     private String fabricante;
 
-    @Column(name = "MODELO", nullable = false, length = 50)
+    @Column(name = "nm_modelo", nullable = false, length = 80)
     private String modelo;
 
-    @Column(name = "POTENCIA_WATTS", nullable = false, precision = 6, scale = 2)
+    @Column(name = "vl_potencia_watts", nullable = false, precision = 6, scale = 2)
     private BigDecimal potenciaWatts;
 
     /** Autonomia total com a bateria cheia. Zero quando o aparelho não tem bateria (ex.: concentrador estacionário). */
-    @Column(name = "AUTONOMIA_MINUTOS", nullable = false)
+    @Column(name = "qt_autonomia_min", nullable = false, precision = 5)
     private Integer autonomiaMinutos;
 
     @Convert(converter = SimNaoConverter.class)
-    @Column(name = "SUPORTE_VIDA", nullable = false, length = 1)
+    @JdbcTypeCode(SqlTypes.CHAR)
+    @Column(name = "fl_suporte_vida", nullable = false, length = 1)
     private Boolean suporteVida;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "FONTE_RESERVA", nullable = false, length = 50)
+    @Convert(converter = FonteReserva.Conversor.class)
+    @Column(name = "tp_fonte_reserva", nullable = false, length = 50)
     private FonteReserva fonteReserva;
+
+    @Column(name = "dt_criacao", nullable = false)
+    private LocalDateTime dataCriacao;
 
     protected Equipamento() {
     }
 
     public Equipamento(Paciente paciente) {
         this.paciente = paciente;
+    }
+
+    @PrePersist
+    void aoCriar() {
+        if (dataCriacao == null) {
+            dataCriacao = LocalDateTime.now();
+        }
     }
 
     public void atualizar(TipoAparelho tipoAparelho, String fabricante, String modelo, BigDecimal potenciaWatts,
@@ -81,4 +95,5 @@ public class Equipamento {
     public Integer getAutonomiaMinutos() { return autonomiaMinutos; }
     public boolean isSuporteVida() { return Boolean.TRUE.equals(suporteVida); }
     public FonteReserva getFonteReserva() { return fonteReserva; }
+    public LocalDateTime getDataCriacao() { return dataCriacao; }
 }

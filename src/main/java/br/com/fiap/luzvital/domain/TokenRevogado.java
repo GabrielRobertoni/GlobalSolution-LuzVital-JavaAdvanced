@@ -7,16 +7,16 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 
-/** Token JWT invalidado no logout (pelo jti) até a data em que ele expiraria de qualquer forma. */
+/** Tabela de apoio da API: token JWT invalidado no logout (pelo jti) até a data em que expiraria. */
 @Entity
-@Table(name = "TOKEN_REVOGADO")
+@Table(name = "T_GS_TOKEN_REVOGADO")
 public class TokenRevogado {
 
     @Id
-    @Column(name = "JTI", length = 64)
+    @Column(name = "id_jti", length = 64)
     private String jti;
 
-    @Column(name = "DATA_EXPIRACAO", nullable = false)
+    @Column(name = "dh_expiracao", nullable = false)
     private Instant dataExpiracao;
 
     protected TokenRevogado() {

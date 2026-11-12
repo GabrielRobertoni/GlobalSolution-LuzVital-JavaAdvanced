@@ -1,10 +1,20 @@
 package br.com.fiap.luzvital.domain;
 
+import jakarta.persistence.Converter;
+
+/** Tipo do ponto de energia (coluna tp_estabelecimento). A carga do banco usa CONDOMINIO, COMERCIO e PUBLICO. */
 public enum TipoEstabelecimento {
     CONDOMINIO,
     COMERCIO,
-    VIZINHO,
+    PUBLICO,
     UNIDADE_SAUDE,
-    ORGAO_PUBLICO,
-    OUTRO
+    VIZINHO,
+    OUTRO;
+
+    @Converter
+    public static class Conversor extends CodigoBanco<TipoEstabelecimento> {
+        public Conversor() {
+            super(TipoEstabelecimento.class, OUTRO);
+        }
+    }
 }
