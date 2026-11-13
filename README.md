@@ -162,7 +162,7 @@ Pré-requisitos: JDK 21+, PostgreSQL 14+ e RabbitMQ 3.12+ rodando localmente.
    ```
    No Windows, use `mvnw.cmd spring-boot:run`. No IntelliJ, rode a classe `LuzVitalApplication` com a pasta do projeto como diretório de trabalho.
 
-> **Erro de certificado ao chamar a IA no Windows?** Se o log mostrar `unable to find valid certification path`, um antivírus ou proxy está interceptando o HTTPS. Rode a API usando os certificados do Windows com a opção de JVM `-Djavax.net.ssl.trustStoreType=Windows-ROOT`. No IntelliJ: *Run > Edit Configurations > Modify options > Add VM options*.
+> **Certificados no Windows:** a API usa automaticamente os certificados do Windows nas chamadas HTTPS (ex.: provedor de IA). Isso evita o erro `unable to find valid certification path` em redes ou antivírus que inspecionam HTTPS. Para desligar, defina a variável `LUZVITAL_CERTIFICADOS_WINDOWS=false`.
 
 ### Opção 3: Oracle (banco da disciplina)
 
