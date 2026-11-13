@@ -164,15 +164,29 @@ Pré-requisitos: JDK 21+, PostgreSQL 14+ e RabbitMQ 3.12+ rodando localmente.
 
 > **Certificados no Windows:** a API usa automaticamente os certificados do Windows nas chamadas HTTPS (ex.: provedor de IA). Isso evita o erro `unable to find valid certification path` em redes ou antivírus que inspecionam HTTPS. Para desligar, defina a variável `LUZVITAL_CERTIFICADOS_WINDOWS=false`.
 
-### Opção 3: Oracle (banco da disciplina)
+### Opção 3: Oracle da FIAP (banco da disciplina) — testado
 
-1. No Oracle, rode o script da disciplina de banco (`GSBancoOracle.sql`) e depois [`scripts/oracle-complemento-api-java.sql`](scripts/oracle-complemento-api-java.sql), que cria as 4 tabelas de apoio.
-2. Suba com o perfil `oracle` (`ddl-auto=none`: a API não cria nem altera tabelas no Oracle):
-   ```bash
-   SPRING_PROFILES_ACTIVE=oracle ORACLE_URL=jdbc:oracle:thin:@oracle.fiap.com.br:1521:ORCL DB_USER=<rm> DB_PASSWORD=<senha> ./mvnw spring-boot:run
+A API foi testada conectada ao **Oracle 19c da FIAP**, sobre as tabelas `T_GS_*` criadas pelo script da equipe de banco:
+- login dos 5 usuários da carga;
+- leitura dos dados e fila do gestor;
+- CRUD com persistência;
+- ocorrência com idempotência, consumidor do RabbitMQ e atendimento aceito pela constraint `CK_T_GS_ATEND_TIPO`;
+- planos gerados pela IA e gravados no Oracle.
+
+Os gatilhos do banco reagem às operações da API: `TRG_T_GS_AUDITORIA_OCORRENCIA` registra cada passo e `TRG_T_GS_UPDATE_BATERIA` recalcula o score.
+
+1. No schema Oracle, rode o script da disciplina de banco (`GSBancoOracle.sql`) e depois [`scripts/oracle-complemento-api-java.sql`](scripts/oracle-complemento-api-java.sql), que cria **só** as 4 tabelas de apoio da API.
+2. No `.env`, troque as linhas do banco por estas:
+   ```properties
+   DB_URL=jdbc:oracle:thin:@oracle.fiap.com.br:1521:ORCL
+   DB_USER=<usuário Oracle>
+   DB_PASSWORD=<senha Oracle>
+   JPA_DDL_AUTO=none
    ```
+   Com `JPA_DDL_AUTO=none`, a API não cria nem altera nenhuma tabela no Oracle. O esquema é o do script.
+3. Suba a API normalmente (IntelliJ ou `mvnw spring-boot:run`). O RabbitMQ continua sendo o local, do Docker ou do CloudAMQP.
 
-Na primeira subida, as senhas fictícias da carga (`hash_carlos123`...) dos 5 usuários são trocadas pelo hash BCrypt das senhas de teste abaixo, para permitir o login.
+Na primeira subida, as senhas fictícias da carga (`hash_carlos123`...) dos 5 usuários **do app** em `T_GS_USUARIO` são trocadas pelo hash BCrypt das senhas de teste abaixo, para permitir o login. A conta Oracle não é alterada.
 
 ### Variáveis de ambiente
 

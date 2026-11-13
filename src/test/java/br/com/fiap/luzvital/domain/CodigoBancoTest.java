@@ -23,7 +23,9 @@ class CodigoBancoTest {
         assertThat(c.convertToEntityAttribute("ASPIRADOR_SECREÇÃO")).isEqualTo(TipoAparelho.ASPIRADOR_SECRECAO);
         assertThat(c.convertToEntityAttribute("ventilador_mecanico")).isEqualTo(TipoAparelho.VENTILADOR_MECANICO);
         assertThat(c.convertToEntityAttribute("TIPO_NOVO")).isEqualTo(TipoAparelho.OUTRO);
-        assertThat(c.convertToDatabaseColumn(TipoAparelho.ASPIRADOR_SECRECAO)).isEqualTo("ASPIRADOR_SECRECAO");
+        // Grava como na carga do script Oracle, para o filtro por tipo encontrar os registros antigos e os novos
+        assertThat(c.convertToDatabaseColumn(TipoAparelho.ASPIRADOR_SECRECAO)).isEqualTo("ASPIRADOR_SECREÇÃO");
+        assertThat(c.convertToDatabaseColumn(TipoAparelho.VENTILADOR_MECANICO)).isEqualTo("VENTILADOR_MECANICO");
     }
 
     @Test

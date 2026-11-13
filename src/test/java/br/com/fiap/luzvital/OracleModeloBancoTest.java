@@ -93,6 +93,12 @@ class OracleModeloBancoTest {
 
         mvc.perform(get("/ocorrencias?status=EM_ABERTO&size=50").header("Authorization", "Bearer " + gestor))
                 .andExpect(jsonPath("$.conteudo[*].atendimentos[*].tipoSocorro", hasItem("REMOCAO_UTI")));
+
+        // O filtro por tipo encontra o aparelho gravado com acento pela carga do banco
+        mvc.perform(get("/equipamentos?tipo=ASPIRADOR_SECRECAO").header("Authorization", "Bearer " + gestor))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.totalElementos").value(1))
+                .andExpect(jsonPath("$.conteudo[0].modelo").value("1004-SUCTION"));
     }
 
     @Test
@@ -166,6 +172,10 @@ class OracleModeloBancoTest {
                 .andExpect(status().isCreated());
         assertThat(jdbc.queryForObject("select fl_suporte_vida from T_GS_EQUIPAMENTO where id_paciente = ?",
                 String.class, pacienteId)).isEqualTo("S");
+        assertThat(jdbc.queryForObject("select tp_aparelho from T_GS_EQUIPAMENTO where id_paciente = ?",
+                String.class, pacienteId)).isEqualTo("ASPIRADOR_SECREÇÃO");
+        mvc.perform(get("/equipamentos?tipo=ASPIRADOR_SECRECAO").header("Authorization", "Bearer " + carlos))
+                .andExpect(jsonPath("$.totalElementos").value(1)); // o novo, do Carlos (o da carga é de outra cuidadora)
 
         planoService.gerar(pacienteId.longValue()); // o que o consumidor do RabbitMQ faria
         mvc.perform(get("/pacientes/" + pacienteId + "/plano-contingencia").header("Authorization", "Bearer " + carlos))

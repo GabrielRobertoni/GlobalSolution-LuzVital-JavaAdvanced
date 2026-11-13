@@ -3,7 +3,7 @@
 # Ative com SPRING_PROFILES_ACTIVE=oracle e informe ORACLE_URL, DB_USER e DB_PASSWORD.
 spring:
   datasource:
-    url: ${ORACLE_URL:jdbc:oracle:thin:@oracle.fiap.com.br:1521:ORCL}
+    url: ${DB_URL:${ORACLE_URL:jdbc:oracle:thin:@oracle.fiap.com.br:1521:ORCL}}
     username: ${DB_USER}
     password: ${DB_PASSWORD}
     driver-class-name: oracle.jdbc.OracleDriver
