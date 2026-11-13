@@ -1,7 +1,7 @@
 package br.com.fiap.luzvital.service;
 
-import java.time.LocalDateTime;
 import java.util.Comparator;
+import java.util.function.ToIntFunction;
 
 import br.com.fiap.luzvital.domain.Equipamento;
 import br.com.fiap.luzvital.domain.Ocorrencia;
@@ -42,9 +42,9 @@ public final class RegraPrioridade {
         return score;
     }
 
-    /** Ordem da fila do gestor, avaliada no instante {@code agora}. */
-    public static Comparator<Ocorrencia> ordemDaFila(LocalDateTime agora) {
-        return Comparator.<Ocorrencia>comparingInt(o -> o.minutosRestantes(agora))
+    /** Ordem da fila do gestor; {@code minutosRestantes} dá os minutos de cada ocorrência no instante da consulta. */
+    public static Comparator<Ocorrencia> ordemDaFila(ToIntFunction<Ocorrencia> minutosRestantes) {
+        return Comparator.<Ocorrencia>comparingInt(minutosRestantes)
                 .thenComparingInt(o -> o.getPaciente().equipamentoCritico()
                         .map(Equipamento::getTipoAparelho).map(t -> t.ordemDesempate()).orElse(Integer.MAX_VALUE))
                 .thenComparing(Ocorrencia::getPrioridadeScore, Comparator.reverseOrder())

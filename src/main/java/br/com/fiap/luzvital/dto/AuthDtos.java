@@ -34,7 +34,7 @@ public final class AuthDtos {
 
     public record LoginRequest(
             @Schema(example = "carlos.silva@gmail.com") @NotBlank @Email String email,
-            @Schema(example = "Cuidador@123") @NotBlank String senha) {
+            @Schema(example = "hash_carlos123") @NotBlank String senha) {
     }
 
     public record UsuarioResposta(Long id, String nome, String email, Papel papel, boolean ativo,

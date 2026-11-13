@@ -47,11 +47,11 @@ public final class PacienteDtos {
             @Schema(description = "Aparelhos do paciente") List<EquipamentoDtos.EquipamentoResposta> equipamentos,
             @Schema(description = "Situação do plano de contingência (nulo se ainda não há aparelhos)") StatusPlano statusPlano) {
 
-        public static PacienteResposta de(Paciente p) {
+        public static PacienteResposta de(Paciente p, StatusPlano statusPlano) {
             return new PacienteResposta(p.getId(), p.getCuidador().getId(), p.getNome(), p.getCpf(), p.getEndereco(),
                     p.getBairro(), p.getCidade(), p.getUf(), p.getCep(), p.getTelefone(), p.getDataCriacao(),
                     p.getEquipamentos().stream().map(EquipamentoDtos.EquipamentoResposta::de).toList(),
-                    p.getPlano() == null ? null : p.getPlano().getStatus());
+                    statusPlano);
         }
     }
 }

@@ -25,7 +25,7 @@ public class OpenApiConfig {
                                 pelos minutos de bateria restantes e evento energia.caiu no RabbitMQ.
 
                                 Como testar: faça POST /auth/login com um usuário de teste, copie o token e clique em Authorize.
-                                Usuários de teste (mesmos do script Oracle): luciana.mendes@defesacivil.sp.gov.br / Gestor@123 (GESTOR) · carlos.silva@gmail.com / Cuidador@123 (CUIDADOR).
+                                Usuários de teste (mesmos do script Oracle): luciana.mendes@defesacivil.sp.gov.br / hash_luciana_adm (GESTOR) · carlos.silva@gmail.com / hash_carlos123 (CUIDADOR).
 
                                 O Luz Vital não substitui o SAMU (192), os Bombeiros (193) nem a distribuidora e não dá orientação clínica."""))
                 .components(new Components().addSecuritySchemes("bearerAuth", new SecurityScheme()

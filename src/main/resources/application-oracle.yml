@@ -1,5 +1,5 @@
 # Perfil "oracle": usa o banco Oracle da disciplina de banco (tabelas T_GS_* do GSBancoOracle.sql).
-# Antes de subir: rode GSBancoOracle.sql e depois scripts/oracle-complemento-api-java.sql (4 tabelas de apoio).
+# Usa só as 7 tabelas do GSBancoOracle.sql, sem tabela extra; a API não cria nem altera tabelas e não grava nada ao subir.
 # Ative com SPRING_PROFILES_ACTIVE=oracle e informe ORACLE_URL, DB_USER e DB_PASSWORD.
 spring:
   datasource:

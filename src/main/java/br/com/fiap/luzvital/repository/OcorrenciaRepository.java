@@ -17,9 +17,6 @@ import br.com.fiap.luzvital.domain.StatusOcorrencia;
 
 public interface OcorrenciaRepository extends JpaRepository<Ocorrencia, Long> {
 
-    @Query("select c.ocorrencia from OcorrenciaControle c where c.chaveIdempotencia = :chave")
-    Optional<Ocorrencia> findByChaveIdempotencia(@Param("chave") String chaveIdempotencia);
-
     Optional<Ocorrencia> findFirstByPacienteIdAndStatusIn(Long pacienteId, Collection<StatusOcorrencia> status);
 
     boolean existsByPacienteId(Long pacienteId);
@@ -39,9 +36,8 @@ public interface OcorrenciaRepository extends JpaRepository<Ocorrencia, Long> {
 
     /** Ocorrências que o consumidor ainda não priorizou (ex.: RabbitMQ fora do ar na abertura). */
     @Query("""
-            select o from Ocorrencia o left join o.controle c
-            where o.status in :status and o.dataInicio < :limite
-              and ((c.id is null and o.prioridadeScore = 0) or (c.id is not null and c.dataPriorizacao is null))
+            select o from Ocorrencia o
+            where o.status in :status and o.dataInicio < :limite and o.prioridadeScore = 0
             """)
     List<Ocorrencia> buscarNaoPriorizadas(@Param("status") Collection<StatusOcorrencia> status,
                                           @Param("limite") LocalDateTime limite);

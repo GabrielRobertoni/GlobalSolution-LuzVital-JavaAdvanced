@@ -12,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import br.com.fiap.luzvital.domain.Papel;
-import br.com.fiap.luzvital.domain.TokenRevogado;
 import br.com.fiap.luzvital.domain.Usuario;
 import br.com.fiap.luzvital.dto.AuthDtos.AuthResposta;
 import br.com.fiap.luzvital.dto.AuthDtos.CadastroUsuarioRequest;
@@ -21,7 +20,7 @@ import br.com.fiap.luzvital.dto.AuthDtos.UsuarioResposta;
 import br.com.fiap.luzvital.dto.PaginaResposta;
 import br.com.fiap.luzvital.exception.ConflitoException;
 import br.com.fiap.luzvital.exception.RecursoNaoEncontradoException;
-import br.com.fiap.luzvital.repository.TokenRevogadoRepository;
+import br.com.fiap.luzvital.security.TokensRevogados;
 import br.com.fiap.luzvital.repository.UsuarioRepository;
 import br.com.fiap.luzvital.security.JwtService;
 
@@ -29,14 +28,14 @@ import br.com.fiap.luzvital.security.JwtService;
 public class AuthService {
 
     private final UsuarioRepository usuarios;
-    private final TokenRevogadoRepository revogados;
+    private final TokensRevogados revogados;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
 
     /** Hash usado quando o e-mail não existe, para o login levar o mesmo tempo nos dois casos. */
     private final String hashFicticio;
 
-    public AuthService(UsuarioRepository usuarios, TokenRevogadoRepository revogados, PasswordEncoder passwordEncoder,
+    public AuthService(UsuarioRepository usuarios, TokensRevogados revogados, PasswordEncoder passwordEncoder,
                        JwtService jwtService) {
         this.usuarios = usuarios;
         this.revogados = revogados;
@@ -71,13 +70,10 @@ public class AuthService {
         return autenticado(usuario);
     }
 
-    /** Logout: o jti do token entra na lista de revogados até a data de expiração original. */
-    @Transactional
+    /** Logout: o jti do token fica revogado até a data de expiração original. */
     public void logout(Jwt jwt) {
         Instant expira = jwt.getExpiresAt() == null ? Instant.now().plusSeconds(86400) : jwt.getExpiresAt();
-        if (jwt.getId() != null && !revogados.existsById(jwt.getId())) {
-            revogados.save(new TokenRevogado(jwt.getId(), expira));
-        }
+        revogados.revogar(jwt.getId(), expira);
     }
 
     @Transactional(readOnly = true)

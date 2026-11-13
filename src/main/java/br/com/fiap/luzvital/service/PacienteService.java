@@ -38,14 +38,14 @@ public class PacienteService {
     public PaginaResposta<PacienteResposta> listar(String nome, String bairro, Pageable pageable,
                                                    UsuarioAutenticado usuario) {
         var pagina = pacientes.buscar(Acesso.filtroCuidador(usuario), vazioParaNulo(nome), vazioParaNulo(bairro), pageable);
-        return PaginaResposta.de(pagina, PacienteResposta::de);
+        return PaginaResposta.de(pagina, this::resposta);
     }
 
     @Transactional(readOnly = true)
     public PacienteResposta buscar(Long id, UsuarioAutenticado usuario) {
         Paciente paciente = carregar(id);
         Acesso.leitura(paciente, usuario);
-        return PacienteResposta.de(paciente);
+        return resposta(paciente);
     }
 
     @Transactional
@@ -58,7 +58,7 @@ public class PacienteService {
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário", usuario.id()));
         Paciente paciente = new Paciente(cuidador);
         aplicar(paciente, req, cpf);
-        return PacienteResposta.de(pacientes.save(paciente));
+        return resposta(pacientes.save(paciente));
     }
 
     @Transactional
@@ -75,7 +75,7 @@ public class PacienteService {
             // Os pontos de energia do plano dependem do bairro
             planoService.solicitar(paciente, "endereço alterado");
         }
-        return PacienteResposta.de(paciente);
+        return resposta(paciente);
     }
 
     @Transactional
@@ -85,7 +85,12 @@ public class PacienteService {
         if (ocorrencias.existsByPacienteId(id)) {
             throw new ConflitoException("Paciente com ocorrências registradas não pode ser excluído (histórico de atendimento)");
         }
-        pacientes.delete(paciente); // equipamentos e plano saem em cascata
+        pacientes.delete(paciente); // os equipamentos saem em cascata
+        planoService.descartar(id);
+    }
+
+    private PacienteResposta resposta(Paciente p) {
+        return PacienteResposta.de(p, planoService.status(p.getId()));
     }
 
     Paciente carregar(Long id) {

@@ -50,15 +50,17 @@ public class OcorrenciaService {
     private final PacienteRepository pacientes;
     private final PontoEnergiaRepository pontos;
     private final PriorizacaoService priorizacao;
+    private final EstadoOcorrencias estado;
     private final ApplicationEventPublisher eventos;
 
     public OcorrenciaService(OcorrenciaRepository ocorrencias, PacienteRepository pacientes,
                              PontoEnergiaRepository pontos, PriorizacaoService priorizacao,
-                             ApplicationEventPublisher eventos) {
+                             EstadoOcorrencias estado, ApplicationEventPublisher eventos) {
         this.ocorrencias = ocorrencias;
         this.pacientes = pacientes;
         this.pontos = pontos;
         this.priorizacao = priorizacao;
+        this.estado = estado;
         this.eventos = eventos;
     }
 
@@ -75,7 +77,7 @@ public class OcorrenciaService {
         LocalDateTime agora = LocalDateTime.now();
 
         if (chaveIdempotencia != null) {
-            var existente = ocorrencias.findByChaveIdempotencia(chaveIdempotencia);
+            var existente = estado.ocorrenciaDaChave(chaveIdempotencia).flatMap(ocorrencias::findById);
             if (existente.isPresent()) {
                 if (!existente.get().getPaciente().getId().equals(paciente.getId())) {
                     throw new ConflitoException("Esta Idempotency-Key já foi usada em outra ocorrência");
@@ -92,8 +94,9 @@ public class OcorrenciaService {
                 "Cadastre ao menos um aparelho de suporte à vida antes de abrir uma ocorrência"));
 
         Ocorrencia ocorrencia = Ocorrencia.abrir(paciente, critico.getAutonomiaMinutos(), textoOuNulo(req.observacao()),
-                chaveIdempotencia, agora);
+                agora);
         ocorrencias.save(ocorrencia);
+        estado.registrarChave(chaveIdempotencia, ocorrencia.getId());
         // Publicado no RabbitMQ só após o commit (EventoPublisher)
         eventos.publishEvent(new EnergiaCaiuEvento(ocorrencia.getId(), paciente.getId(), paciente.getBairro(), agora));
         return new ResultadoAbertura(detalhe(ocorrencia, agora), true);
@@ -119,7 +122,7 @@ public class OcorrenciaService {
     public PaginaResposta<FilaItemResposta> fila(int pagina, int tamanho) {
         LocalDateTime agora = LocalDateTime.now();
         List<Ocorrencia> ordenadas = ocorrencias.findByStatusIn(ATIVAS).stream()
-                .sorted(RegraPrioridade.ordemDaFila(agora))
+                .sorted(RegraPrioridade.ordemDaFila(o -> estado.minutosRestantes(o, agora)))
                 .toList();
         List<FilaItemResposta> itens = new ArrayList<>();
         for (int i = 0; i < ordenadas.size(); i++) {
@@ -137,7 +140,8 @@ public class OcorrenciaService {
         }
         exigirAtiva(o);
         LocalDateTime agora = LocalDateTime.now();
-        o.atualizarBateria(minutosRestantes, agora);
+        o.atualizarBateria(minutosRestantes);
+        estado.registrarBateria(o.getId(), agora);
         priorizacao.recalcularScore(o, agora);
         return detalhe(o, agora);
     }
@@ -191,7 +195,7 @@ public class OcorrenciaService {
         Double tempoMedio = atendidas.isEmpty() ? null : arredondar(atendidas.stream()
                 .mapToLong(o -> Duration.between(o.getDataInicio(), o.getDataFim()).toMinutes()).average().orElse(0));
         Double antesFimBateria = atendidas.isEmpty() ? null : arredondar(100.0 * atendidas.stream()
-                .filter(o -> !o.getDataFim().isAfter(o.previsaoEsgotamento())).count() / atendidas.size());
+                .filter(o -> !o.getDataFim().isAfter(estado.previsaoEsgotamento(o))).count() / atendidas.size());
         Map<String, Long> pontosPorBairro = pontos.findByDisponivel(true).stream()
                 .collect(Collectors.groupingBy(PontoEnergia::getBairro, TreeMap::new, Collectors.counting()));
         long totalAtendidas = todas.stream().filter(o -> o.getStatus() == StatusOcorrencia.ATENDIDO).count();
@@ -224,21 +228,21 @@ public class OcorrenciaService {
     private OcorrenciaResposta detalhe(Ocorrencia o, LocalDateTime agora) {
         Paciente p = o.getPaciente();
         return new OcorrenciaResposta(o.getId(), p.getId(), p.getNome(), p.getBairro(), o.getStatus(), o.getDataInicio(),
-                o.getDataFim(), o.getBateriaMinutos(), o.referenciaBateria(),
-                o.isAtiva() ? o.minutosRestantes(agora) : 0, o.previsaoEsgotamento(), o.getPrioridadeScore(),
+                o.getDataFim(), o.getBateriaMinutos(), estado.referenciaBateria(o),
+                o.isAtiva() ? estado.minutosRestantes(o, agora) : 0, estado.previsaoEsgotamento(o), o.getPrioridadeScore(),
                 o.isPriorizada(), o.getObservacao(), AparelhoCriticoResposta.de(p.equipamentoCritico().orElse(null)),
                 o.getAtendimentos().stream().map(AtendimentoResposta::de).toList(),
-                o.getNotificacoes().stream().map(NotificacaoResposta::de).toList(),
+                estado.avisos(o.getId()).stream().map(NotificacaoResposta::de).toList(),
                 OcorrenciaDtos.AVISO_EMERGENCIA);
     }
 
     private FilaItemResposta itemFila(int posicao, Ocorrencia o, LocalDateTime agora) {
         Paciente p = o.getPaciente();
         return new FilaItemResposta(posicao, o.getId(), p.getId(), p.getNome(), p.getBairro(), p.getCidade(),
-                p.getTelefone(), o.getStatus(), o.getDataInicio(), o.minutosRestantes(agora),
-                o.previsaoEsgotamento(), AparelhoCriticoResposta.de(p.equipamentoCritico().orElse(null)),
+                p.getTelefone(), o.getStatus(), o.getDataInicio(), estado.minutosRestantes(o, agora),
+                estado.previsaoEsgotamento(o), AparelhoCriticoResposta.de(p.equipamentoCritico().orElse(null)),
                 p.possuiFonteReserva(), o.getPrioridadeScore(), o.isPriorizada(), o.getAtendimentos().size(),
-                o.getNotificacoes().size());
+                estado.avisos(o.getId()).size());
     }
 
     private static String textoOuNulo(String s) {

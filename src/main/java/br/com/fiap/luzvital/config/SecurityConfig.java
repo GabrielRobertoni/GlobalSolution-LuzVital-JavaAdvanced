@@ -17,7 +17,6 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
 import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.core.OAuth2Error;
@@ -40,9 +39,10 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 
-import br.com.fiap.luzvital.repository.TokenRevogadoRepository;
 import br.com.fiap.luzvital.security.ErroSegurancaHandler;
 import br.com.fiap.luzvital.security.JwtService;
+import br.com.fiap.luzvital.security.SenhaEncoder;
+import br.com.fiap.luzvital.security.TokensRevogados;
 
 /**
  * Spring Security stateless com JWT (resource server do próprio Spring Security).
@@ -98,9 +98,10 @@ public class SecurityConfig {
         return http.build();
     }
 
+    /** BCrypt para senhas novas; aceita também as senhas fictícias sem hash da carga do banco da disciplina. */
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder();
+        return new SenhaEncoder();
     }
 
     /** Chave HS256. Sem JWT_SECRET, gera uma chave aleatória (os tokens deixam de valer quando a API reinicia). */
@@ -128,11 +129,11 @@ public class SecurityConfig {
     }
 
     @Bean
-    public JwtDecoder jwtDecoder(SecretKey jwtSecretKey, LuzVitalProperties props, TokenRevogadoRepository revogados) {
+    public JwtDecoder jwtDecoder(SecretKey jwtSecretKey, LuzVitalProperties props, TokensRevogados revogados) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(jwtSecretKey).macAlgorithm(MacAlgorithm.HS256).build();
         OAuth2TokenValidator<Jwt> audiencia = new JwtClaimValidator<List<String>>("aud",
                 aud -> aud != null && aud.contains(props.jwt().audiencia()));
-        OAuth2TokenValidator<Jwt> naoRevogado = jwt -> jwt.getId() != null && revogados.existsById(jwt.getId())
+        OAuth2TokenValidator<Jwt> naoRevogado = jwt -> revogados.revogado(jwt.getId())
                 ? OAuth2TokenValidatorResult.failure(new OAuth2Error("invalid_token", "Token revogado (logout)", null))
                 : OAuth2TokenValidatorResult.success();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(

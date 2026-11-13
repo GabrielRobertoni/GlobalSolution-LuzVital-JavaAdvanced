@@ -19,7 +19,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.OrderBy;
 import jakarta.persistence.Table;
 
@@ -28,8 +27,7 @@ import jakarta.persistence.Table;
  * <p>
  * qt_bateria_min guarda os minutos de bateria informados (na abertura, a menor autonomia entre os
  * aparelhos de suporte à vida, como em PR_T_GS_ABRIR_OCORRENCIA). Os minutos restantes são calculados
- * na hora, descontando o tempo desde o momento em que a bateria foi informada (dh_inicio, ou a última
- * atualização registrada em T_GS_OCORRENCIA_CONTROLE).
+ * na hora a partir do momento em que a bateria foi informada.
  * <p>
  * {@code @DynamicUpdate}: o UPDATE leva só as colunas alteradas, então o gatilho TRG_T_GS_UPDATE_BATERIA
  * (BEFORE UPDATE OF qt_bateria_min) só dispara quando a bateria muda de fato.
@@ -63,33 +61,23 @@ public class Ocorrencia {
     @Column(name = "qt_bateria_min", nullable = false)
     private Integer bateriaMinutos;
 
+    /** 0 até o consumidor do evento energia.caiu priorizar (ou o valor calculado pela carga do banco). */
     @Column(name = "vl_score_prioridade", nullable = false)
     private Integer prioridadeScore;
 
     @Column(name = "ds_observacao", length = TAMANHO_OBSERVACAO)
     private String observacao;
 
-    /** Dados de controle da API (idempotência, horário da bateria, priorização). Pode não existir em registros da carga do banco. */
-    @OneToOne(mappedBy = "ocorrencia", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
-    private OcorrenciaControle controle;
-
     @OneToMany(mappedBy = "ocorrencia", cascade = CascadeType.ALL)
     @OrderBy("dataAtendimento ASC")
     private List<Atendimento> atendimentos = new ArrayList<>();
-
-    @OneToMany(mappedBy = "ocorrencia", cascade = CascadeType.ALL)
-    @OrderBy("dataEnvio ASC")
-    private List<NotificacaoPonto> notificacoes = new ArrayList<>();
 
     protected Ocorrencia() {
     }
 
     /** Abertura pelo "Estou sem luz": score 0 até o consumidor do evento energia.caiu priorizar. */
-    public static Ocorrencia abrir(Paciente paciente, int bateriaMinutos, String observacao, String chaveIdempotencia,
-                                   LocalDateTime agora) {
-        Ocorrencia o = registrar(paciente, StatusOcorrencia.EM_ABERTO, bateriaMinutos, 0, observacao, agora);
-        o.controle = new OcorrenciaControle(o, chaveIdempotencia, agora);
-        return o;
+    public static Ocorrencia abrir(Paciente paciente, int bateriaMinutos, String observacao, LocalDateTime agora) {
+        return registrar(paciente, StatusOcorrencia.EM_ABERTO, bateriaMinutos, 0, observacao, agora);
     }
 
     /** Registro direto (carga inicial espelhada do script do banco). */
@@ -105,36 +93,22 @@ public class Ocorrencia {
         return o;
     }
 
-    /** Momento em que qt_bateria_min foi informada. */
-    public LocalDateTime referenciaBateria() {
-        return controle != null && controle.getDataBateria() != null ? controle.getDataBateria() : dataInicio;
-    }
-
-    public int minutosRestantes(LocalDateTime agora) {
-        long decorridos = Math.max(0, Duration.between(referenciaBateria(), agora).toMinutes());
+    /** Minutos que restam agora, descontando o tempo desde {@code referenciaBateria} (quando a bateria foi informada). */
+    public int minutosRestantes(LocalDateTime referenciaBateria, LocalDateTime agora) {
+        long decorridos = Math.max(0, Duration.between(referenciaBateria, agora).toMinutes());
         return (int) Math.max(0, bateriaMinutos - decorridos);
     }
 
-    public LocalDateTime previsaoEsgotamento() {
-        return referenciaBateria().plusMinutes(bateriaMinutos);
+    public LocalDateTime previsaoEsgotamento(LocalDateTime referenciaBateria) {
+        return referenciaBateria.plusMinutes(bateriaMinutos);
     }
 
-    public void atualizarBateria(int minutosRestantes, LocalDateTime agora) {
+    public void atualizarBateria(int minutosRestantes) {
         this.bateriaMinutos = minutosRestantes;
-        garantirControle(agora).registrarBateria(agora);
     }
 
-    public void aplicarPrioridade(int score, LocalDateTime agora) {
+    public void aplicarPrioridade(int score) {
         this.prioridadeScore = score;
-        garantirControle(agora).registrarPriorizacao(agora);
-    }
-
-    private OcorrenciaControle garantirControle(LocalDateTime agora) {
-        if (controle == null) {
-            // Ocorrência vinda da carga do banco: a bateria foi informada na abertura
-            controle = new OcorrenciaControle(this, null, dataInicio);
-        }
-        return controle;
     }
 
     public void registrarAtendimento(Atendimento atendimento) {
@@ -170,12 +144,9 @@ public class Ocorrencia {
         return status != null && status.ativa();
     }
 
-    /** Já passou pelo consumidor de energia.caiu (ou veio da carga do banco com score calculado). */
+    /** Já tem score calculado (pelo consumidor de energia.caiu ou pela carga do banco). */
     public boolean isPriorizada() {
-        if (controle == null) {
-            return prioridadeScore != null && prioridadeScore > 0;
-        }
-        return controle.getDataPriorizacao() != null;
+        return prioridadeScore != null && prioridadeScore > 0;
     }
 
     public Long getId() { return id; }
@@ -186,7 +157,5 @@ public class Ocorrencia {
     public Integer getBateriaMinutos() { return bateriaMinutos; }
     public Integer getPrioridadeScore() { return prioridadeScore; }
     public String getObservacao() { return observacao; }
-    public OcorrenciaControle getControle() { return controle; }
     public List<Atendimento> getAtendimentos() { return atendimentos; }
-    public List<NotificacaoPonto> getNotificacoes() { return notificacoes; }
 }

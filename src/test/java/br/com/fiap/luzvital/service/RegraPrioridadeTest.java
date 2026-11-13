@@ -8,6 +8,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import br.com.fiap.luzvital.domain.Equipamento;
 import br.com.fiap.luzvital.domain.FonteReserva;
@@ -18,6 +19,7 @@ import br.com.fiap.luzvital.domain.TipoAparelho;
 class RegraPrioridadeTest {
 
     private final LocalDateTime t0 = LocalDateTime.of(2026, 11, 10, 20, 0);
+    private final EstadoOcorrencias estado = new EstadoOcorrencias();
 
     @Test
     void scoreIgualAFuncaoOracleFnTGsCalculaPrioridade() {
@@ -35,30 +37,39 @@ class RegraPrioridadeTest {
 
     @Test
     void minutosRestantesDescontaOTempoDesdeAQuedaENaoFicaNegativo() {
-        Ocorrencia o = Ocorrencia.abrir(paciente(TipoAparelho.VENTILADOR_MECANICO, 120), 120, null, null, t0);
-        assertThat(o.minutosRestantes(t0)).isEqualTo(120);
-        assertThat(o.minutosRestantes(t0.plusMinutes(45))).isEqualTo(75);
-        assertThat(o.minutosRestantes(t0.plusHours(5))).isZero();
-        assertThat(o.previsaoEsgotamento()).isEqualTo(t0.plusMinutes(120));
+        Ocorrencia o = abrir(1L, TipoAparelho.VENTILADOR_MECANICO, 120, t0);
+        assertThat(estado.minutosRestantes(o, t0)).isEqualTo(120);
+        assertThat(estado.minutosRestantes(o, t0.plusMinutes(45))).isEqualTo(75);
+        assertThat(estado.minutosRestantes(o, t0.plusHours(5))).isZero();
+        assertThat(estado.previsaoEsgotamento(o)).isEqualTo(t0.plusMinutes(120));
     }
 
     @Test
     void atualizarBateriaReiniciaAContagemAPartirDoNovoValor() {
-        Ocorrencia o = Ocorrencia.abrir(paciente(TipoAparelho.VENTILADOR_MECANICO, 900), 900, null, null, t0);
-        o.atualizarBateria(30, t0.plusHours(2));
-        assertThat(o.minutosRestantes(t0.plusHours(2).plusMinutes(10))).isEqualTo(20);
+        Ocorrencia o = abrir(2L, TipoAparelho.VENTILADOR_MECANICO, 900, t0);
+        o.atualizarBateria(30);
+        estado.registrarBateria(o.getId(), t0.plusHours(2));
+        assertThat(estado.minutosRestantes(o, t0.plusHours(2).plusMinutes(10))).isEqualTo(20);
+        assertThat(estado.previsaoEsgotamento(o)).isEqualTo(t0.plusHours(2).plusMinutes(30));
+    }
+
+    @Test
+    void semAtualizacaoDeBateriaAContagemUsaDhInicio() {
+        Ocorrencia o = Ocorrencia.abrir(paciente(TipoAparelho.VENTILADOR_MECANICO, 60), 60, null, t0);
+        assertThat(estado.minutosRestantes(o, t0.plusMinutes(15))).isEqualTo(45);
     }
 
     @Test
     void filaOrdenaPorMinutosRestantesENoEmpateVentiladorAntesDeConcentrador() {
-        Ocorrencia concentrador = Ocorrencia.abrir(paciente(TipoAparelho.CONCENTRADOR_OXIGENIO, 60), 60, null, null, t0);
-        Ocorrencia ventilador = Ocorrencia.abrir(paciente(TipoAparelho.VENTILADOR_MECANICO, 60), 60, null, null, t0);
-        Ocorrencia muitaBateria = Ocorrencia.abrir(paciente(TipoAparelho.VENTILADOR_MECANICO, 900), 900, null, null, t0);
+        Ocorrencia concentrador = abrir(10L, TipoAparelho.CONCENTRADOR_OXIGENIO, 60, t0);
+        Ocorrencia ventilador = abrir(11L, TipoAparelho.VENTILADOR_MECANICO, 60, t0);
+        Ocorrencia muitaBateria = abrir(12L, TipoAparelho.VENTILADOR_MECANICO, 900, t0);
         // Chegou depois, mas tem menos bateria: passa na frente
-        Ocorrencia semBateria = Ocorrencia.abrir(paciente(TipoAparelho.CONCENTRADOR_OXIGENIO, 0), 0, null, null, t0.plusMinutes(5));
+        Ocorrencia semBateria = abrir(13L, TipoAparelho.CONCENTRADOR_OXIGENIO, 0, t0.plusMinutes(5));
 
+        LocalDateTime agora = t0.plusMinutes(5);
         List<Ocorrencia> fila = new ArrayList<>(List.of(muitaBateria, concentrador, ventilador, semBateria));
-        fila.sort(RegraPrioridade.ordemDaFila(t0.plusMinutes(5)));
+        fila.sort(RegraPrioridade.ordemDaFila(o -> estado.minutosRestantes(o, agora)));
 
         assertThat(fila).containsExactly(semBateria, ventilador, concentrador, muitaBateria);
     }
@@ -79,6 +90,12 @@ class RegraPrioridadeTest {
     void bairroIgnoraAcentoEMaiusculas() {
         assertThat(Formatos.mesmoBairro("Consolação", "  consolacao ")).isTrue();
         assertThat(Formatos.mesmoBairro("Bela Vista", "Pinheiros")).isFalse();
+    }
+
+    private Ocorrencia abrir(Long id, TipoAparelho tipo, int bateria, LocalDateTime inicio) {
+        Ocorrencia o = Ocorrencia.abrir(paciente(tipo, bateria), bateria, null, inicio);
+        ReflectionTestUtils.setField(o, "id", id);
+        return o;
     }
 
     private Paciente paciente(TipoAparelho tipo, int autonomia) {

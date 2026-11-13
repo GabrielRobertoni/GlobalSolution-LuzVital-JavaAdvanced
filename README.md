@@ -99,18 +99,19 @@ A API usa **as tabelas do script da disciplina de banco (`GSBancoOracle.sql`) se
 | `T_GS_USUARIO` | `Usuario` | cuidador 1:N pacientes |
 | `T_GS_PACIENTE` | `Paciente` | 1:N equipamentos, 1:N ocorrências |
 | `T_GS_EQUIPAMENTO` | `Equipamento` | N:1 paciente |
-| `T_GS_PONTO_ENERGIA` | `PontoEnergia` | 1:N atendimentos e avisos |
+| `T_GS_PONTO_ENERGIA` | `PontoEnergia` | 1:N atendimentos |
 | `T_GS_OCORRENCIA` | `Ocorrencia` | N:1 paciente, 1:N atendimentos |
 | `T_GS_ATENDIMENTO` | `Atendimento` | N:1 ocorrência, N:1 ponto |
 
-O que é exclusivo do backend fica em **4 tabelas de apoio**, no mesmo padrão de nomes ([`scripts/oracle-complemento-api-java.sql`](scripts/oracle-complemento-api-java.sql)):
+**Nenhuma tabela extra.** A API trabalha só com as tabelas do script e, ao subir, não cria nem altera nenhum dado. O que é exclusivo do backend e não tem coluna no modelo do banco fica **em memória da API**:
 
-| Tabela de apoio | Para que serve |
-|---|---|
-| `T_GS_OCORRENCIA_CONTROLE` | Chave de idempotência do app, horário da bateria informada e horário da priorização (1:1 com a ocorrência) |
-| `T_GS_NOTIFICACAO_PONTO` | Avisos do consumidor de `energia.caiu` aos pontos de energia do bairro |
-| `T_GS_PLANO_CONTINGENCIA` | Plano de contingência gerado pela IA (JSON estruturado) |
-| `T_GS_TOKEN_REVOGADO` | Tokens JWT invalidados no logout |
+| Estado em memória | Para que serve | Se a API reiniciar |
+|---|---|---|
+| Chave de idempotência do app | O "Estou sem luz" reenviado devolve a mesma ocorrência | A regra "uma ocorrência ativa por paciente" continua impedindo duplicidade |
+| Horário em que a bateria foi informada | Contagem regressiva dos minutos depois de `PATCH /bateria` | A contagem volta a usar `dh_inicio` |
+| Avisos aos pontos de energia | Resultado do consumidor de `energia.caiu` | Novos avisos são feitos nas próximas ocorrências |
+| Plano de contingência | Resposta estruturada da IA (o app guarda no celular para uso offline) | É gerado de novo na próxima consulta |
+| Tokens revogados | Logout | Com `JWT_SECRET` vazio, todos os tokens antigos deixam de valer. Com `JWT_SECRET` fixo, um token já revogado volta a valer até expirar (`JWT_EXPIRACAO`, padrão 8 h) |
 
 ```mermaid
 erDiagram
@@ -119,10 +120,6 @@ erDiagram
     T_GS_PACIENTE ||--o{ T_GS_OCORRENCIA : "abre"
     T_GS_OCORRENCIA ||--o{ T_GS_ATENDIMENTO : "recebe"
     T_GS_PONTO_ENERGIA |o--o{ T_GS_ATENDIMENTO : "é acionado"
-    T_GS_OCORRENCIA ||--o| T_GS_OCORRENCIA_CONTROLE : "apoio da API"
-    T_GS_OCORRENCIA ||--o{ T_GS_NOTIFICACAO_PONTO : "apoio da API"
-    T_GS_PONTO_ENERGIA ||--o{ T_GS_NOTIFICACAO_PONTO : "é avisado"
-    T_GS_PACIENTE ||--o| T_GS_PLANO_CONTINGENCIA : "apoio da API"
 ```
 
 Os pacotes e gatilhos do banco continuam valendo sobre os dados gravados pela API:
@@ -131,7 +128,7 @@ Os pacotes e gatilhos do banco continuam valendo sobre os dados gravados pela AP
 
 ## Como rodar
 
-O primeiro start cria as tabelas e carrega **os mesmos dados do script Oracle da disciplina**: 5 usuários, 5 pacientes, 5 equipamentos, 5 pontos de energia, 5 ocorrências e 5 atendimentos.
+Com um PostgreSQL vazio, o primeiro start cria as tabelas e carrega **os mesmos dados do script Oracle da disciplina**: 5 usuários, 5 pacientes, 5 equipamentos, 5 pontos de energia, 5 ocorrências e 5 atendimentos.
 
 ### Opção 1: Docker (recomendado)
 
@@ -166,16 +163,15 @@ Pré-requisitos: JDK 21+, PostgreSQL 14+ e RabbitMQ 3.12+ rodando localmente.
 
 ### Opção 3: Oracle da FIAP (banco da disciplina) — testado
 
-A API foi testada conectada ao **Oracle 19c da FIAP**, sobre as tabelas `T_GS_*` criadas pelo script da equipe de banco:
-- login dos 5 usuários da carga;
-- leitura dos dados e fila do gestor;
-- CRUD com persistência;
-- ocorrência com idempotência, consumidor do RabbitMQ e atendimento aceito pela constraint `CK_T_GS_ATEND_TIPO`;
-- planos gerados pela IA e gravados no Oracle.
+A API foi testada conectada ao **Oracle 19c da FIAP**, usando **só** as tabelas `T_GS_*` criadas pelo script da equipe de banco, sem nenhuma tabela extra e sem alterar nenhum dado ao subir:
+- login dos 5 usuários da carga com as senhas gravadas no script;
+- leitura dos pacientes, aparelhos (inclusive `ASPIRADOR_SECREÇÃO`), pontos, ocorrências, atendimentos com tipo acentuado e fila do gestor;
+- plano de contingência gerado via RabbitMQ;
+- logout com revogação do token.
 
-Os gatilhos do banco reagem às operações da API: `TRG_T_GS_AUDITORIA_OCORRENCIA` registra cada passo e `TRG_T_GS_UPDATE_BATERIA` recalcula o score.
+Os gatilhos do banco reagem às operações de escrita da API: `TRG_T_GS_AUDITORIA_OCORRENCIA` registra cada passo e `TRG_T_GS_UPDATE_BATERIA` recalcula o score.
 
-1. No schema Oracle, rode o script da disciplina de banco (`GSBancoOracle.sql`) e depois [`scripts/oracle-complemento-api-java.sql`](scripts/oracle-complemento-api-java.sql), que cria **só** as 4 tabelas de apoio da API.
+1. O schema Oracle precisa ter o script da disciplina de banco (`GSBancoOracle.sql`) já rodado. Nada mais é necessário.
 2. No `.env`, troque as linhas do banco por estas:
    ```properties
    DB_URL=jdbc:oracle:thin:@oracle.fiap.com.br:1521:ORCL
@@ -186,7 +182,7 @@ Os gatilhos do banco reagem às operações da API: `TRG_T_GS_AUDITORIA_OCORRENC
    Com `JPA_DDL_AUTO=none`, a API não cria nem altera nenhuma tabela no Oracle. O esquema é o do script.
 3. Suba a API normalmente (IntelliJ ou `mvnw spring-boot:run`). O RabbitMQ continua sendo o local, do Docker ou do CloudAMQP.
 
-Na primeira subida, as senhas fictícias da carga (`hash_carlos123`...) dos 5 usuários **do app** em `T_GS_USUARIO` são trocadas pelo hash BCrypt das senhas de teste abaixo, para permitir o login. A conta Oracle não é alterada.
+Como o banco já tem dados, a carga inicial não roda: a API só lê e grava o que o usuário fizer pelo app ou pelo Swagger.
 
 ### Variáveis de ambiente
 
@@ -199,6 +195,7 @@ Nenhuma credencial real fica no repositório.
 | `IA_BASE_URL` | `https://generativelanguage.googleapis.com/v1beta/openai` | Endpoint compatível com OpenAI (Gemini, `https://api.openai.com/v1`, Groq...) |
 | `IA_MODELO` | `gemini-3.5-flash-lite` | Modelo. Para a foto da etiqueta, precisa aceitar imagem |
 | `DB_HOST` / `DB_PORT` / `DB_NAME` / `DB_USER` / `DB_PASSWORD` | `localhost` / `5432` / `luzvital` / `luzvital` / `luzvital` | PostgreSQL |
+| `DB_URL` / `JPA_DDL_AUTO` | vazio / `update` | URL JDBC completa (ex.: Oracle da FIAP, com `JPA_DDL_AUTO=none`) |
 | `RABBITMQ_ADDRESSES` | `amqp://guest:guest@localhost:5672` | RabbitMQ (aceita `amqps://` do CloudAMQP) |
 | `CORS_ORIGENS` | `*` | Origens liberadas (Expo web) |
 | `PORT` | `8080` | Porta HTTP |
@@ -207,15 +204,15 @@ Nenhuma credencial real fica no repositório.
 
 ## Usuários de teste
 
-São os mesmos usuários do script Oracle da disciplina de banco. Senha dos cuidadores: `Cuidador@123`. Senha dos gestores: `Gestor@123`.
+São os mesmos usuários do script Oracle da disciplina de banco, com **a senha que está gravada no script** (coluna `ds_senha`). No Oracle a senha é conferida como está no script; no PostgreSQL local a carga guarda essas mesmas senhas com BCrypt. Usuários novos (`/auth/cadastro`, `/usuarios/gestores`) sempre são gravados com BCrypt.
 
-| Papel | E-mail | Paciente e aparelho (carga do banco) |
-|---|---|---|
-| CUIDADOR | `carlos.silva@gmail.com` | João Carlos Silva: ventilador Philips Trilogy Evo, 900 min de bateria |
-| CUIDADOR | `mariana.rocha@hotmail.com` | Maria Aparecida Rocha: concentrador EverFlo **sem bateria** (ocorrência aberta) |
-| CUIDADOR | `roberto.ferreira@outlook.com` | Pedro Henrique Ferreira: só bomba de infusão, que **não** é de suporte à vida (teste negativo de abertura) |
-| GESTOR | `luciana.mendes@defesacivil.sp.gov.br` | Defesa Civil: vê a fila, registra atendimentos, gerencia pontos e gestores |
-| GESTOR | `fernando.souza@enel.com.br` | Distribuidora: mesmo acesso de gestor |
+| Papel | E-mail | Senha | Paciente e aparelho (carga do banco) |
+|---|---|---|---|
+| CUIDADOR | `carlos.silva@gmail.com` | `hash_carlos123` | João Carlos Silva: ventilador Philips Trilogy Evo, 900 min de bateria |
+| CUIDADOR | `mariana.rocha@hotmail.com` | `hash_mariana456` | Maria Aparecida Rocha: concentrador EverFlo **sem bateria** (ocorrência aberta) |
+| CUIDADOR | `roberto.ferreira@outlook.com` | `hash_roberto789` | Pedro Henrique Ferreira: só bomba de infusão, que **não** é de suporte à vida (teste negativo de abertura) |
+| GESTOR | `luciana.mendes@defesacivil.sp.gov.br` | `hash_luciana_adm` | Defesa Civil: vê a fila, registra atendimentos, gerencia pontos e gestores |
+| GESTOR | `fernando.souza@enel.com.br` | `hash_enel_gestor` | Distribuidora: mesmo acesso de gestor |
 
 Para usar no Swagger, chame `POST /auth/login`, copie o `token`, clique em **Authorize** e cole o token.
 
@@ -267,15 +264,16 @@ Vale para todos os erros: 400, 401, 403, 404, 409, 422, 503 e 500.
 ## Roteiro de teste (ponta a ponta)
 
 1. Login como **gestora** (`luciana.mendes@defesacivil.sp.gov.br`) e `GET /ocorrencias/fila`.
-   - As 3 ocorrências ativas da carga aparecem nesta ordem: Maria (concentrador, 0 min), Ana (aspirador, 0 min) e José (ventilador).
-   - Todas vêm com `priorizada: true`: o consumidor do RabbitMQ processou o evento.
-2. Login como **Mariana** e `GET /ocorrencias/1`: os `pontosNotificados` mostram o ponto do bairro Bela Vista, e o atendimento `GERADOR_MOVEL` da carga aparece.
+   - As 3 ocorrências ativas da carga aparecem ordenadas pelos minutos de bateria restantes (no PostgreSQL recém-carregado: Maria, Ana e José). No empate de minutos, o ventilador passa à frente do concentrador.
+   - Todas vêm com `priorizada: true`, com o score gravado na carga do banco.
+2. Login como **Mariana** e `GET /ocorrencias/1`: o atendimento `GERADOR_MOVEL` da carga aparece. Os `pontosNotificados` são preenchidos pelo consumidor do RabbitMQ nas ocorrências abertas pela API (passo 6).
 3. Login como **Carlos** e `GET /pacientes`: aparece só o João. Em `GET /pacientes/2` (paciente da Mariana), a resposta é **403**.
-4. `GET /pacientes/1/plano-contingencia` traz o plano gerado na carga inicial, com `origem` igual a `IA` quando há chave, ou `REGRAS` quando não há.
+4. `GET /pacientes/1/plano-contingencia`: a primeira consulta devolve `GERANDO` e publica `plano.solicitado`. Alguns segundos depois, a mesma consulta traz o plano `PRONTO`, com `origem` igual a `IA` quando há chave, ou `REGRAS` quando não há.
 5. `POST /equipamentos` com `potenciaWatts: 0` devolve **400** com os campos inválidos.
 6. `POST /ocorrencias` com `{"pacienteId": 1}` e `Idempotency-Key: 3f1c...` devolve **201**.
    - Repetir com a mesma chave devolve **200** com a mesma ocorrência.
    - Repetir sem chave devolve **409**.
+   - `GET /ocorrencias/{id}` mostra em `pontosNotificados` a Padaria Central Novo Milênio, ponto do bairro Jardim Paulista avisado pelo consumidor de `energia.caiu`.
 7. `PATCH /ocorrencias/{id}/bateria` com `{"minutosRestantes": 45}` devolve o score 1015 e faz o João subir na fila.
 8. Como gestora, `POST /ocorrencias/{id}/atendimentos` com `{"tipoSocorro":"REMOCAO_UTI","descricao":"...","pontoEnergiaId":2}` muda o status para `EM_ATENDIMENTO`.
 9. `POST /ocorrencias/{id}/encerramento` devolve 200. Encerrar de novo devolve **409**.
@@ -317,12 +315,12 @@ Vale para todos os erros: 400, 401, 403, 404, 409, 422, 503 e 500.
 ./mvnw test
 ```
 
-São 29 testes:
+São 31 testes:
 - **Regras:** score igual ao de `FN_T_GS_CALCULA_PRIORIDADE`, fila, contagem regressiva e códigos gravados no banco (constraints com acento).
 - **Etiqueta:** potência estimada por V × A.
 - **Spring AI:** `ChatModel` simulado, com saída estruturada, guarda-corpos e nova tentativa quando a resposta vem cortada.
 - **Integração com MockMvc:** 401/403 no formato padrão, validação, publicação de `energia.caiu`, idempotência, 409 e 422.
-- **`OracleModeloBancoTest`:** roda a API sobre **o DDL e a carga originais do `GSBancoOracle.sql`** (H2 em modo Oracle, `ddl-auto=none`) mais o script das tabelas de apoio. Prova que login, fila, atendimentos com constraint, bateria, idempotência, CRUD, plano e logout funcionam no modelo do banco sem alterá-lo.
+- **`OracleModeloBancoTest`:** roda a API sobre **o DDL e a carga originais do `GSBancoOracle.sql`** (H2 em modo Oracle, `ddl-auto=none`), sem nenhuma tabela extra. Prova que a subida não grava nada e que login com as senhas do script, fila, atendimentos com constraint, bateria, idempotência, CRUD, plano e logout funcionam no modelo do banco sem alterá-lo.
 
 Os testes usam H2 em memória e não precisam de Docker.
 

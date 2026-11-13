@@ -19,7 +19,6 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
-import jakarta.persistence.OneToOne;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 
@@ -68,9 +67,6 @@ public class Paciente {
 
     @OneToMany(mappedBy = "paciente", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<Equipamento> equipamentos = new ArrayList<>();
-
-    @OneToOne(mappedBy = "paciente", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
-    private PlanoContingencia plano;
 
     protected Paciente() {
     }
@@ -139,6 +135,4 @@ public class Paciente {
     public String getTelefone() { return telefone; }
     public LocalDateTime getDataCriacao() { return dataCriacao; }
     public List<Equipamento> getEquipamentos() { return equipamentos; }
-    public PlanoContingencia getPlano() { return plano; }
-    public void setPlano(PlanoContingencia plano) { this.plano = plano; }
 }

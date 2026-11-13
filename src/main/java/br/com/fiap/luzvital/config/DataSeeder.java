@@ -9,7 +9,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
@@ -26,36 +25,31 @@ import br.com.fiap.luzvital.domain.TipoAparelho;
 import br.com.fiap.luzvital.domain.TipoEstabelecimento;
 import br.com.fiap.luzvital.domain.TipoSocorro;
 import br.com.fiap.luzvital.domain.Usuario;
-import br.com.fiap.luzvital.messaging.EnergiaCaiuEvento;
 import br.com.fiap.luzvital.repository.OcorrenciaRepository;
 import br.com.fiap.luzvital.repository.PacienteRepository;
 import br.com.fiap.luzvital.repository.PontoEnergiaRepository;
 import br.com.fiap.luzvital.repository.UsuarioRepository;
-import br.com.fiap.luzvital.service.PlanoContingenciaService;
 
 /**
- * Carga inicial espelhada do script Oracle da disciplina de banco (GSBancoOracle.sql): os mesmos 5 usuários,
- * pacientes, equipamentos, pontos de energia, ocorrências e atendimentos. Só roda com o banco vazio.
+ * Carga inicial: só roda com o banco VAZIO (ex.: PostgreSQL local). Espelha o script Oracle da disciplina de banco
+ * (GSBancoOracle.sql): os mesmos 5 usuários, pacientes, equipamentos, pontos de energia, ocorrências e atendimentos.
  * <p>
- * Com o banco Oracle já carregado pelo script da equipe, as senhas fictícias ('hash_...') dos 5 usuários de
- * teste são trocadas pelo hash BCrypt das senhas documentadas no README, para permitir o login.
- * Senhas: cuidadores = Cuidador@123, gestores = Gestor@123.
+ * Com o banco já carregado (ex.: o Oracle da equipe de banco), não grava nem altera nada.
+ * Os usuários de teste entram com a senha que está no script ('hash_carlos123', 'hash_luciana_adm'...);
+ * aqui no espelho essas senhas são guardadas com BCrypt.
  */
 @Component
 public class DataSeeder implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DataSeeder.class);
 
-    public static final String SENHA_CUIDADOR = "Cuidador@123";
-    public static final String SENHA_GESTOR = "Gestor@123";
-
-    /** Usuários do script Oracle: e-mail -> [nome, papel]. */
+    /** Usuários do script Oracle: [nome, e-mail, papel, senha gravada no script]. */
     private static final String[][] USUARIOS = {
-            {"Carlos Alberto Silva", "carlos.silva@gmail.com", "CUIDADOR"},
-            {"Mariana Santos Rocha", "mariana.rocha@hotmail.com", "CUIDADOR"},
-            {"Roberto Ferreira", "roberto.ferreira@outlook.com", "CUIDADOR"},
-            {"Luciana Mendes", "luciana.mendes@defesacivil.sp.gov.br", "GESTOR"},
-            {"Dr. Fernando Souza", "fernando.souza@enel.com.br", "GESTOR"}
+            {"Carlos Alberto Silva", "carlos.silva@gmail.com", "CUIDADOR", "hash_carlos123"},
+            {"Mariana Santos Rocha", "mariana.rocha@hotmail.com", "CUIDADOR", "hash_mariana456"},
+            {"Roberto Ferreira", "roberto.ferreira@outlook.com", "CUIDADOR", "hash_roberto789"},
+            {"Luciana Mendes", "luciana.mendes@defesacivil.sp.gov.br", "GESTOR", "hash_luciana_adm"},
+            {"Dr. Fernando Souza", "fernando.souza@enel.com.br", "GESTOR", "hash_enel_gestor"}
     };
 
     private final UsuarioRepository usuarios;
@@ -63,20 +57,15 @@ public class DataSeeder implements ApplicationRunner {
     private final PontoEnergiaRepository pontos;
     private final OcorrenciaRepository ocorrencias;
     private final PasswordEncoder encoder;
-    private final PlanoContingenciaService planoService;
-    private final ApplicationEventPublisher eventos;
     private final LuzVitalProperties props;
 
     public DataSeeder(UsuarioRepository usuarios, PacienteRepository pacientes, PontoEnergiaRepository pontos,
-                      OcorrenciaRepository ocorrencias, PasswordEncoder encoder, PlanoContingenciaService planoService,
-                      ApplicationEventPublisher eventos, LuzVitalProperties props) {
+                      OcorrenciaRepository ocorrencias, PasswordEncoder encoder, LuzVitalProperties props) {
         this.usuarios = usuarios;
         this.pacientes = pacientes;
         this.pontos = pontos;
         this.ocorrencias = ocorrencias;
         this.encoder = encoder;
-        this.planoService = planoService;
-        this.eventos = eventos;
         this.props = props;
     }
 
@@ -86,36 +75,19 @@ public class DataSeeder implements ApplicationRunner {
         if (!props.seed().habilitado()) {
             return;
         }
-        if (usuarios.count() == 0) {
-            log.info("Banco vazio: carregando os dados do script Oracle da equipe de banco");
-            carregarEspelhoDoScriptOracle();
-        } else {
-            ajustarSenhasFicticias();
+        if (usuarios.count() > 0) {
+            log.info("Banco já carregado: a carga inicial não cria nem altera nenhum dado");
+            return;
         }
-        // Plano de contingência (tabela de apoio da API) para quem tem aparelho e ainda não tem plano
-        pacientes.findAll().stream()
-                .filter(p -> !p.getEquipamentos().isEmpty() && p.getPlano() == null)
-                .forEach(p -> planoService.solicitar(p, "carga inicial"));
-    }
-
-    /** No Oracle carregado pelo script, ds_senha tem textos fictícios ('hash_carlos123'): troca por BCrypt. */
-    private void ajustarSenhasFicticias() {
-        for (String[] u : USUARIOS) {
-            usuarios.findByEmailIgnoreCase(u[1]).ifPresent(usuario -> {
-                String hash = usuario.getSenhaHash();
-                if (hash == null || !hash.startsWith("$2")) {
-                    usuario.definirSenhaHash(encoder.encode(senhaDe(usuario.getPapel())));
-                    log.info("Senha de teste definida para {}", usuario.getEmail());
-                }
-            });
-        }
+        log.info("Banco vazio: carregando o espelho do script Oracle da equipe de banco");
+        carregarEspelhoDoScriptOracle();
     }
 
     private void carregarEspelhoDoScriptOracle() {
         Map<String, Usuario> porEmail = new HashMap<>();
         for (String[] u : USUARIOS) {
             Papel papel = Papel.valueOf(u[2]);
-            porEmail.put(u[1], usuarios.save(new Usuario(u[0], u[1], encoder.encode(senhaDe(papel)), papel)));
+            porEmail.put(u[1], usuarios.save(new Usuario(u[0], u[1], encoder.encode(u[3]), papel)));
         }
 
         PontoEnergia paulista = ponto("Condomínio Edifício Paulista", TipoEstabelecimento.CONDOMINIO, "Síndico Roberto",
@@ -173,16 +145,6 @@ public class DataSeeder implements ApplicationRunner {
         atendimento(ocoPedro, padaria, TipoSocorro.RECARGA_BATERIA,
                 "Orientação remota fornecida para troca por cilindro reserva.");
         ocorrencias.flush();
-
-        // As ocorrências ativas passam pelo consumidor do RabbitMQ (score atual + aviso aos pontos do bairro)
-        for (Ocorrencia o : new Ocorrencia[]{ocoMaria, ocoAna, ocoJose}) {
-            eventos.publishEvent(new EnergiaCaiuEvento(o.getId(), o.getPaciente().getId(), o.getPaciente().getBairro(),
-                    o.getDataInicio()));
-        }
-    }
-
-    private static String senhaDe(Papel papel) {
-        return papel == Papel.GESTOR ? SENHA_GESTOR : SENHA_CUIDADOR;
     }
 
     private PontoEnergia ponto(String nome, TipoEstabelecimento tipo, String responsavel, String telefone, String bairro,

@@ -6,10 +6,10 @@ import java.util.Map;
 
 import br.com.fiap.luzvital.domain.Atendimento;
 import br.com.fiap.luzvital.domain.Equipamento;
-import br.com.fiap.luzvital.domain.NotificacaoPonto;
 import br.com.fiap.luzvital.domain.StatusOcorrencia;
 import br.com.fiap.luzvital.domain.TipoAparelho;
 import br.com.fiap.luzvital.domain.TipoSocorro;
+import br.com.fiap.luzvital.service.EstadoOcorrencias;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.NotBlank;
@@ -72,12 +72,11 @@ public final class OcorrenciaDtos {
         }
     }
 
-    public record NotificacaoResposta(Long id, Long pontoEnergiaId, String nomeLocal, String telefone, String bairro,
+    public record NotificacaoResposta(Long pontoEnergiaId, String nomeLocal, String telefone, String bairro,
                                       boolean possuiGerador, String mensagem, LocalDateTime dataEnvio) {
-        public static NotificacaoResposta de(NotificacaoPonto n) {
-            var p = n.getPontoEnergia();
-            return new NotificacaoResposta(n.getId(), p.getId(), p.getNomeLocal(), p.getTelefone(), p.getBairro(),
-                    p.isPossuiGerador(), n.getMensagem(), n.getDataEnvio());
+        public static NotificacaoResposta de(EstadoOcorrencias.AvisoPonto a) {
+            return new NotificacaoResposta(a.pontoEnergiaId(), a.nomeLocal(), a.telefone(), a.bairro(),
+                    a.possuiGerador(), a.mensagem(), a.dataEnvio());
         }
     }
 

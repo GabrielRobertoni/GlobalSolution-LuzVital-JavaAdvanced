@@ -11,20 +11,16 @@ import br.com.fiap.luzvital.dto.PontoEnergiaDtos.PontoEnergiaResposta;
 import br.com.fiap.luzvital.exception.ConflitoException;
 import br.com.fiap.luzvital.exception.RecursoNaoEncontradoException;
 import br.com.fiap.luzvital.repository.AtendimentoRepository;
-import br.com.fiap.luzvital.repository.NotificacaoPontoRepository;
 import br.com.fiap.luzvital.repository.PontoEnergiaRepository;
 
 @Service
 public class PontoEnergiaService {
 
     private final PontoEnergiaRepository pontos;
-    private final NotificacaoPontoRepository notificacoes;
     private final AtendimentoRepository atendimentos;
 
-    public PontoEnergiaService(PontoEnergiaRepository pontos, NotificacaoPontoRepository notificacoes,
-                               AtendimentoRepository atendimentos) {
+    public PontoEnergiaService(PontoEnergiaRepository pontos, AtendimentoRepository atendimentos) {
         this.pontos = pontos;
-        this.notificacoes = notificacoes;
         this.atendimentos = atendimentos;
     }
 
@@ -57,7 +53,7 @@ public class PontoEnergiaService {
     @Transactional
     public void excluir(Long id) {
         PontoEnergia ponto = carregar(id);
-        if (notificacoes.existsByPontoEnergiaId(id) || atendimentos.existsByPontoEnergiaId(id)) {
+        if (atendimentos.existsByPontoEnergiaId(id)) {
             throw new ConflitoException("Ponto com histórico de ocorrências não pode ser excluído; "
                     + "altere 'disponivel' para false para tirá-lo da rede");
         }

@@ -9,18 +9,16 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import br.com.fiap.luzvital.domain.NotificacaoPonto;
 import br.com.fiap.luzvital.domain.Ocorrencia;
 import br.com.fiap.luzvital.domain.Paciente;
 import br.com.fiap.luzvital.domain.PontoEnergia;
-import br.com.fiap.luzvital.repository.NotificacaoPontoRepository;
 import br.com.fiap.luzvital.repository.OcorrenciaRepository;
 import br.com.fiap.luzvital.repository.PontoEnergiaRepository;
 
 /**
- * Lógica do consumidor do evento energia.caiu: calcula a prioridade da ocorrência, encontra os pontos de
- * energia disponíveis no bairro do paciente e grava os avisos. É idempotente: reprocessar a mesma mensagem
- * só recalcula o score e não duplica avisos.
+ * Lógica do consumidor do evento energia.caiu: calcula a prioridade da ocorrência (gravada em
+ * vl_score_prioridade) e avisa os pontos de energia disponíveis no bairro do paciente. É idempotente:
+ * reprocessar a mesma mensagem só recalcula o score e não repete avisos.
  */
 @Service
 public class PriorizacaoService {
@@ -30,13 +28,12 @@ public class PriorizacaoService {
 
     private final OcorrenciaRepository ocorrencias;
     private final PontoEnergiaRepository pontos;
-    private final NotificacaoPontoRepository notificacoes;
+    private final EstadoOcorrencias estado;
 
-    public PriorizacaoService(OcorrenciaRepository ocorrencias, PontoEnergiaRepository pontos,
-                              NotificacaoPontoRepository notificacoes) {
+    public PriorizacaoService(OcorrenciaRepository ocorrencias, PontoEnergiaRepository pontos, EstadoOcorrencias estado) {
         this.ocorrencias = ocorrencias;
         this.pontos = pontos;
-        this.notificacoes = notificacoes;
+        this.estado = estado;
     }
 
     @Transactional
@@ -52,21 +49,21 @@ public class PriorizacaoService {
         Paciente paciente = ocorrencia.getPaciente();
         int novos = 0;
         for (PontoEnergia ponto : pontosDoBairro(paciente)) {
-            if (notificacoes.existsByOcorrenciaIdAndPontoEnergiaId(ocorrenciaId, ponto.getId())) {
-                continue;
+            EstadoOcorrencias.AvisoPonto aviso = new EstadoOcorrencias.AvisoPonto(ponto.getId(), ponto.getNomeLocal(),
+                    ponto.getTelefone(), ponto.getBairro(), ponto.isPossuiGerador(),
+                    mensagem(ocorrencia, paciente, agora), agora);
+            if (estado.registrarAviso(ocorrenciaId, aviso)) {
+                novos++;
             }
-            notificacoes.save(new NotificacaoPonto(ocorrencia, ponto, mensagem(ocorrencia, paciente, agora), agora));
-            novos++;
         }
         log.info("Ocorrência {} priorizada: {} min restantes, score {}, {} ponto(s) de energia avisado(s)",
-                ocorrenciaId, ocorrencia.minutosRestantes(agora), ocorrencia.getPrioridadeScore(), novos);
+                ocorrenciaId, estado.minutosRestantes(ocorrencia, agora), ocorrencia.getPrioridadeScore(), novos);
     }
 
     /** Também usado quando a bateria é atualizada (mesmo papel do gatilho TRG_T_GS_UPDATE_BATERIA). */
     public void recalcularScore(Ocorrencia ocorrencia, LocalDateTime agora) {
-        int minutos = ocorrencia.minutosRestantes(agora);
-        int score = RegraPrioridade.calcularScore(minutos, ocorrencia.getPaciente().possuiSuporteVida());
-        ocorrencia.aplicarPrioridade(score, agora);
+        int minutos = estado.minutosRestantes(ocorrencia, agora);
+        ocorrencia.aplicarPrioridade(RegraPrioridade.calcularScore(minutos, ocorrencia.getPaciente().possuiSuporteVida()));
     }
 
     /** Pontos disponíveis no mesmo bairro do paciente, com gerador primeiro. */
@@ -78,10 +75,10 @@ public class PriorizacaoService {
                 .toList();
     }
 
-    private static String mensagem(Ocorrencia o, Paciente paciente, LocalDateTime agora) {
+    private String mensagem(Ocorrencia o, Paciente paciente, LocalDateTime agora) {
         String aparelho = paciente.equipamentoCritico().map(e -> e.getTipoAparelho().name()).orElse("aparelho vital");
         String texto = "Luz Vital: paciente eletrodependente sem energia no bairro " + paciente.getBairro()
-                + " (" + aparelho + ", cerca de " + o.minutosRestantes(agora) + " min de bateria). "
+                + " (" + aparelho + ", cerca de " + estado.minutosRestantes(o, agora) + " min de bateria). "
                 + "O gestor pode acionar este ponto para recarga ou apoio. Ocorrência #" + o.getId() + ".";
         return texto.length() > 300 ? texto.substring(0, 300) : texto;
     }
