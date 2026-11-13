@@ -15,8 +15,10 @@ spring:
   config:
     import: optional:file:.env[.properties]
 
+  # DB_URL troca o banco inteiro (ex.: Oracle da FIAP: jdbc:oracle:thin:@oracle.fiap.com.br:1521:ORCL).
+  # Sem DB_URL, usa o PostgreSQL montado com DB_HOST/DB_PORT/DB_NAME.
   datasource:
-    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:luzvital}
+    url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:luzvital}}
     username: ${DB_USER:luzvital}
     password: ${DB_PASSWORD:luzvital}
     hikari:
@@ -26,7 +28,8 @@ spring:
   jpa:
     open-in-view: false
     hibernate:
-      # update cria/ajusta as tabelas com os mesmos nomes do script Oracle da equipe de banco
+      # PostgreSQL: update cria as tabelas com os mesmos nomes do script Oracle da equipe de banco.
+      # Oracle da disciplina: use JPA_DDL_AUTO=none (as tabelas vêm dos scripts; a API não altera o esquema).
       ddl-auto: ${JPA_DDL_AUTO:update}
     properties:
       hibernate:
