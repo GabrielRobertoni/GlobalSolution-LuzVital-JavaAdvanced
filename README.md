@@ -332,7 +332,7 @@ Vale para todos os erros: 400, 401, 403, 404, 409, 422, 503 e 500.
 ./mvnw test
 ```
 
-São 31 testes:
+São 32 testes:
 - **Regras:** score igual ao de `FN_T_GS_CALCULA_PRIORIDADE`, fila, contagem regressiva e códigos gravados no banco (constraints com acento).
 - **Etiqueta:** potência estimada por V × A.
 - **Spring AI:** `ChatModel` simulado, com saída estruturada, guarda-corpos e nova tentativa quando a resposta vem cortada.

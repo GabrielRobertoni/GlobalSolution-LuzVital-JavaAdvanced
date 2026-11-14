@@ -35,7 +35,7 @@ public class ErroSegurancaHandler implements AuthenticationEntryPoint, AccessDen
         boolean enviouToken = request.getHeader("Authorization") != null;
         String mensagem = enviouToken
                 ? "Token inválido, expirado ou revogado. Faça login novamente"
-                : "Autenticação necessária: envie o cabeçalho Authorization: Bearer <token>";
+                : "Autenticação necessária: faça POST /auth/login e envie o token no cabeçalho Authorization (Bearer)";
         response.setHeader("WWW-Authenticate", "Bearer");
         escrever(response, HttpStatus.UNAUTHORIZED, mensagem, request.getRequestURI());
     }

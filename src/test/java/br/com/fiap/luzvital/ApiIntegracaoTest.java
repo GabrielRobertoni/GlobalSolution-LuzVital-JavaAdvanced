@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.util.UUID;
@@ -70,6 +71,13 @@ class ApiIntegracaoTest {
                 .andExpect(jsonPath("$.status").value(401))
                 .andExpect(jsonPath("$.mensagem").exists())
                 .andExpect(jsonPath("$.caminho").value("/pacientes"));
+    }
+
+    @Test
+    void enderecoRaizAbreOSwaggerSemToken() throws Exception {
+        mvc.perform(get("/"))
+                .andExpect(status().is3xxRedirection())
+                .andExpect(redirectedUrl("/swagger-ui.html"));
     }
 
     @Test

@@ -57,7 +57,7 @@ public class SecurityConfig {
     private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     private static final String[] ROTAS_PUBLICAS = {
-            "/auth/login", "/auth/cadastro",
+            "/", "/auth/login", "/auth/cadastro",
             "/swagger-ui.html", "/swagger-ui/**", "/v3/api-docs/**",
             "/actuator/health", "/actuator/health/**", "/actuator/info", "/error"
     };
