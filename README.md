@@ -15,7 +15,7 @@ O Luz Vital cadastra quem depende de aparelhos elétricos para viver (ventilador
 
 A API está no ar, ligada ao **Oracle da FIAP** (tabelas do banco da disciplina), ao **RabbitMQ** (CloudAMQP) e à **IA generativa** (Gemini). É a forma mais completa de testar: tudo funciona, inclusive a IA.
 
-1. Abra **https://luz-vital-api.onrender.com** (abre o Swagger).
+1. Abra o Swagger: **https://luz-vital-api.onrender.com/swagger-ui.html** (o endereço curto https://luz-vital-api.onrender.com também leva para ele).
    > O plano gratuito do Render desliga a API depois de 15 minutos sem uso: **a primeira abertura pode levar de 1 a 3 minutos**. Depois disso, fica rápida.
 2. Em **1. Autenticação**, use `POST /auth/login` → **Try it out** com um usuário de teste e clique em **Execute**:
    - gestora: `{"email": "luciana.mendes@defesacivil.sp.gov.br", "senha": "hash_luciana_adm"}`
