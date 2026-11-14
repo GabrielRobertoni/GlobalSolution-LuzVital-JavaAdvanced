@@ -27,6 +27,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springdoc.core.annotations.ParameterObject;
 
 @RestController
 @RequestMapping("/pontos-energia")
@@ -44,7 +45,7 @@ public class PontoEnergiaController {
     public PaginaResposta<PontoEnergiaResposta> listar(@RequestParam(required = false) String bairro,
                                                        @RequestParam(required = false) Boolean disponivel,
                                                        @RequestParam(required = false) Boolean possuiGerador,
-                                                       @PageableDefault(size = 10, sort = "id") Pageable pageable) {
+                                                       @ParameterObject @PageableDefault(size = 10, sort = "id") Pageable pageable) {
         return pontoService.listar(bairro, disponivel, possuiGerador, pageable);
     }
 

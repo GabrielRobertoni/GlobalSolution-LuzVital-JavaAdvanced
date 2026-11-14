@@ -43,6 +43,7 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Pattern;
+import org.springdoc.core.annotations.ParameterObject;
 
 @RestController
 @RequestMapping("/ocorrencias")
@@ -83,7 +84,7 @@ public class OcorrenciaController {
     @Operation(summary = "Lista ocorrências (paginado). CUIDADOR vê as dos seus pacientes; GESTOR vê todas")
     public PaginaResposta<OcorrenciaResposta> listar(@RequestParam(required = false) Long pacienteId,
                                                      @RequestParam(required = false) StatusOcorrencia status,
-                                                     @PageableDefault(size = 10, sort = "dataInicio", direction = Sort.Direction.DESC)
+                                                     @ParameterObject @PageableDefault(size = 10, sort = "dataInicio", direction = Sort.Direction.DESC)
                                                      Pageable pageable) {
         return ocorrenciaService.listar(pacienteId, status, pageable, usuarioAtual.obter());
     }

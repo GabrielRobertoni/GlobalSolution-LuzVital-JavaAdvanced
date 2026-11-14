@@ -33,6 +33,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springdoc.core.annotations.ParameterObject;
 
 @RestController
 @RequestMapping("/equipamentos")
@@ -52,7 +53,7 @@ public class EquipamentoController {
     public PaginaResposta<EquipamentoResposta> listar(@RequestParam(required = false) Long pacienteId,
                                                       @RequestParam(required = false) TipoAparelho tipo,
                                                       @RequestParam(required = false) Boolean suporteVida,
-                                                      @PageableDefault(size = 10, sort = "id") Pageable pageable) {
+                                                      @ParameterObject @PageableDefault(size = 10, sort = "id") Pageable pageable) {
         return equipamentoService.listar(pacienteId, tipo, suporteVida, pageable, usuarioAtual.obter());
     }
 

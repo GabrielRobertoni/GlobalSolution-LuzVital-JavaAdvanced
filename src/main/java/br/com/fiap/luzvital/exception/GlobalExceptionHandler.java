@@ -88,15 +88,21 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(PropertyReferenceException.class)
     public ResponseEntity<ErroResposta> ordenacaoInvalida(PropertyReferenceException ex, HttpServletRequest req) {
-        return responder(HttpStatus.BAD_REQUEST, "Campo de ordenação inválido: " + ex.getPropertyName(), req, null);
+        return responder(HttpStatus.BAD_REQUEST, "Campo de ordenação inválido: " + ex.getPropertyName()
+                + " (use sort=campo,asc ou sort=campo,desc, ex.: sort=id,asc)", req, null);
     }
 
-    /** Ordenação por campo inexistente em consultas @Query (?sort=campoQueNaoExiste). */
+    /**
+     * Ordenação inválida em consultas @Query (?sort=campoQueNaoExiste, ou o ["string"] que o Swagger sugere):
+     * o Spring Data ou o Hibernate recusam a expressão antes de chegar ao banco.
+     */
     @ExceptionHandler(InvalidDataAccessApiUsageException.class)
     public ResponseEntity<ErroResposta> usoInvalido(InvalidDataAccessApiUsageException ex, HttpServletRequest req) {
-        if (ex.getMostSpecificCause() instanceof org.hibernate.query.sqm.PathElementException
-                || ex.getMostSpecificCause() instanceof org.hibernate.query.sqm.UnknownPathException) {
-            return responder(HttpStatus.BAD_REQUEST, "Campo de ordenação ou filtro inválido", req, null);
+        boolean caminhoInvalido = ex.getMostSpecificCause() instanceof org.hibernate.query.sqm.PathElementException
+                || ex.getMostSpecificCause() instanceof org.hibernate.query.sqm.UnknownPathException;
+        if (caminhoInvalido || req.getParameter("sort") != null) {
+            return responder(HttpStatus.BAD_REQUEST, "Campo de ordenação inválido: use sort=campo,asc ou sort=campo,desc "
+                    + "com um campo da resposta (ex.: sort=id,asc)", req, null);
         }
         return inesperado(ex, req);
     }

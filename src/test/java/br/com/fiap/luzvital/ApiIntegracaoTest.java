@@ -74,6 +74,25 @@ class ApiIntegracaoTest {
     }
 
     @Test
+    void ordenacaoInvalidaDevolve400EmTodasAsListagens() throws Exception {
+        // O Swagger preenche "sort" com ["string"] por padrão
+        for (String rota : new String[]{"/pacientes", "/equipamentos", "/pontos-energia", "/ocorrencias"}) {
+            for (String sort : new String[]{"[\"string\"]", "string", "naoExiste,desc", "nome;drop", "paciente.nome,asc"}) {
+                mvc.perform(get(rota).param("sort", sort).header("Authorization", "Bearer " + cuidador))
+                        .andExpect(status().is(org.hamcrest.Matchers.oneOf(200, 400)))
+                        .andExpect(result -> {
+                            if (result.getResponse().getStatus() == 400) {
+                                org.assertj.core.api.Assertions.assertThat(result.getResponse().getContentAsString())
+                                        .contains("ordenação");
+                            }
+                        });
+            }
+            mvc.perform(get(rota).param("sort", "[\"string\"]").header("Authorization", "Bearer " + cuidador))
+                    .andExpect(status().isBadRequest());
+        }
+    }
+
+    @Test
     void enderecoRaizAbreOSwaggerSemToken() throws Exception {
         mvc.perform(get("/"))
                 .andExpect(status().is3xxRedirection())

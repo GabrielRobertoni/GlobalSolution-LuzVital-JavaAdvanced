@@ -22,6 +22,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springdoc.core.annotations.ParameterObject;
 
 @RestController
 @RequestMapping("/usuarios")
@@ -46,7 +47,7 @@ public class UsuarioController {
     @Operation(summary = "Lista usuários (paginado), com filtro opcional por papel")
     public PaginaResposta<UsuarioResposta> listar(
             @Parameter(description = "CUIDADOR ou GESTOR") @RequestParam(required = false) Papel papel,
-            @PageableDefault(size = 10, sort = "id") Pageable pageable) {
+            @ParameterObject @PageableDefault(size = 10, sort = "id") Pageable pageable) {
         return authService.listar(papel, pageable);
     }
 }

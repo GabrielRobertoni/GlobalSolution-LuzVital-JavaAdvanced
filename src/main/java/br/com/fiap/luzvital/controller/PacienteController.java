@@ -31,6 +31,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springdoc.core.annotations.ParameterObject;
 
 @RestController
 @RequestMapping("/pacientes")
@@ -52,7 +53,7 @@ public class PacienteController {
     @Operation(summary = "Lista pacientes (paginado). Ex.: ?page=0&size=10&sort=nome,asc&bairro=Bela Vista")
     public PaginaResposta<PacienteResposta> listar(@RequestParam(required = false) String nome,
                                                    @RequestParam(required = false) String bairro,
-                                                   @PageableDefault(size = 10, sort = "id") Pageable pageable) {
+                                                   @ParameterObject @PageableDefault(size = 10, sort = "id") Pageable pageable) {
         return pacienteService.listar(nome, bairro, pageable, usuarioAtual.obter());
     }
 
