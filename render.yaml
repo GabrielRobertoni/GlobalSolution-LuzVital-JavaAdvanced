@@ -1,0 +1,37 @@
+# Deploy no Render (Blueprint). Os campos marcados com sync: false são preenchidos no painel do Render
+# na criação do serviço: nenhuma senha ou chave fica no repositório.
+services:
+  - type: web
+    name: luz-vital-api
+    runtime: docker
+    plan: free
+    region: virginia
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /actuator/health
+    autoDeploy: true
+    envVars:
+      # Banco: Oracle da FIAP, só com as tabelas T_GS_* do script da equipe de banco
+      - key: DB_URL
+        value: jdbc:oracle:thin:@oracle.fiap.com.br:1521:ORCL
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: JPA_DDL_AUTO
+        value: none
+      - key: SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE
+        value: "3"
+      # RabbitMQ: URL amqps:// do CloudAMQP
+      - key: RABBITMQ_ADDRESSES
+        sync: false
+      # IA generativa (Gemini, API compatível com OpenAI)
+      - key: IA_API_KEY
+        sync: false
+      - key: IA_MODELO
+        value: gemini-3.5-flash-lite
+      # Chave do JWT gerada pelo próprio Render (fixa entre reinícios)
+      - key: JWT_SECRET
+        generateValue: true
+      # Plano gratuito (512 MB): JVM enxuta e início mais rápido
+      - key: JAVA_TOOL_OPTIONS
+        value: -XX:+UseSerialGC -Xss512k -XX:TieredStopAtLevel=1
