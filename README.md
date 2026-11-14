@@ -11,6 +11,20 @@ O Luz Vital cadastra quem depende de aparelhos elétricos para viver (ventilador
 | Deploy (Swagger) | https://luz-vital-api.onrender.com/swagger-ui.html |
 | **Requisito 5 (arquitetura distribuída)** | **Opção A: RabbitMQ**, com evento publicado e consumido de forma assíncrona |
 
+## Como testar (recomendado: pelo deploy, sem instalar nada)
+
+A API está no ar, ligada ao **Oracle da FIAP** (tabelas do banco da disciplina), ao **RabbitMQ** (CloudAMQP) e à **IA generativa** (Gemini). É a forma mais completa de testar: tudo funciona, inclusive a IA.
+
+1. Abra **https://luz-vital-api.onrender.com** (abre o Swagger).
+   > O plano gratuito do Render desliga a API depois de 15 minutos sem uso: **a primeira abertura pode levar de 1 a 3 minutos**. Depois disso, fica rápida.
+2. Em **1. Autenticação**, use `POST /auth/login` → **Try it out** com um usuário de teste e clique em **Execute**:
+   - gestora: `{"email": "luciana.mendes@defesacivil.sp.gov.br", "senha": "hash_luciana_adm"}`
+   - cuidador: `{"email": "carlos.silva@gmail.com", "senha": "hash_carlos123"}`
+3. Copie o `token` da resposta, clique em **Authorize** (cadeado, no topo), cole e confirme.
+4. Siga o [roteiro de teste](#roteiro-de-teste-ponta-a-ponta). Os demais usuários estão em [Usuários de teste](#usuários-de-teste).
+
+Para rodar no próprio computador (Docker ou Maven, com PostgreSQL e RabbitMQ locais), veja [Como rodar](#como-rodar). Localmente, a IA só funciona com uma chave própria do Gemini em `IA_API_KEY`; sem ela, a API usa o plano padrão por regras.
+
 > **O Luz Vital não é serviço de emergência.** Não substitui o SAMU (192), os Bombeiros (193) nem o canal da distribuidora, e não dá orientação clínica. Todas as respostas de ocorrência e de plano trazem esse aviso.
 
 ## Equipe
@@ -26,6 +40,7 @@ O Luz Vital cadastra quem depende de aparelhos elétricos para viver (ventilador
 ---
 
 ## Sumário
+0. [Como testar (deploy)](#como-testar-recomendado-pelo-deploy-sem-instalar-nada)
 1. [Tecnologias](#tecnologias)
 2. [Arquitetura](#arquitetura)
 3. [Modelo de dados (integrado ao banco da disciplina)](#modelo-de-dados-integrado-ao-banco-da-disciplina)
@@ -128,9 +143,9 @@ Os pacotes e gatilhos do banco continuam valendo sobre os dados gravados pela AP
 
 ## Como rodar
 
-Com um PostgreSQL vazio, o primeiro start cria as tabelas e carrega **os mesmos dados do script Oracle da disciplina**: 5 usuários, 5 pacientes, 5 equipamentos, 5 pontos de energia, 5 ocorrências e 5 atendimentos.
+Há duas formas: usar o **deploy** (já no ar, nada para instalar) ou **rodar localmente** com Docker ou Maven. Localmente, com um PostgreSQL vazio, o primeiro start cria as tabelas e carrega **os mesmos dados do script Oracle da disciplina**: 5 usuários, 5 pacientes, 5 equipamentos, 5 pontos de energia, 5 ocorrências e 5 atendimentos, com os mesmos usuários e senhas de teste.
 
-### Deploy no Render (para testar sem instalar nada)
+### Deploy no Render (recomendado para testar)
 
 A API está publicada em **https://luz-vital-api.onrender.com/swagger-ui.html**, ligada aos mesmos serviços usados no desenvolvimento:
 
@@ -145,9 +160,9 @@ A API está publicada em **https://luz-vital-api.onrender.com/swagger-ui.html**,
 
 > **Primeiro acesso lento:** no plano gratuito, o Render desliga a API depois de 15 minutos sem uso. A primeira chamada depois disso pode levar de 1 a 3 minutos enquanto ela liga de novo. As seguintes são rápidas.
 
-Para testar: abra o Swagger, faça `POST /auth/login` com um dos [usuários de teste](#usuários-de-teste), clique em **Authorize** e cole o token.
+Para testar: siga o passo a passo de [Como testar](#como-testar-recomendado-pelo-deploy-sem-instalar-nada).
 
-### Opção 1: Docker (recomendado)
+### Rodar localmente, opção 1: Docker
 
 Pré-requisito: Docker Desktop.
 
@@ -160,7 +175,7 @@ docker compose up --build
 
 Para ligar a IA generativa, copie `.env.example` para `.env`, preencha `IA_API_KEY` e rode o mesmo comando. A chave do Gemini é gratuita em https://aistudio.google.com/apikey.
 
-### Opção 2: Sem Docker (Maven Wrapper)
+### Rodar localmente, opção 2: sem Docker (Maven Wrapper)
 
 Pré-requisitos: JDK 21+, PostgreSQL 14+ e RabbitMQ 3.12+ rodando localmente.
 
@@ -178,7 +193,7 @@ Pré-requisitos: JDK 21+, PostgreSQL 14+ e RabbitMQ 3.12+ rodando localmente.
 
 > **Certificados no Windows:** a API usa automaticamente os certificados do Windows nas chamadas HTTPS (ex.: provedor de IA). Isso evita o erro `unable to find valid certification path` em redes ou antivírus que inspecionam HTTPS. Para desligar, defina a variável `LUZVITAL_CERTIFICADOS_WINDOWS=false`.
 
-### Opção 3: Oracle da FIAP (banco da disciplina) — testado
+### Rodar localmente, opção 3: ligado ao Oracle da FIAP (banco da disciplina)
 
 A API foi testada conectada ao **Oracle 19c da FIAP**, usando **só** as tabelas `T_GS_*` criadas pelo script da equipe de banco, sem nenhuma tabela extra e sem alterar nenhum dado ao subir:
 - login dos 5 usuários da carga com as senhas gravadas no script;
@@ -280,23 +295,26 @@ Vale para todos os erros: 400, 401, 403, 404, 409, 422, 503 e 500.
 
 ## Roteiro de teste (ponta a ponta)
 
-1. Login como **gestora** (`luciana.mendes@defesacivil.sp.gov.br`) e `GET /ocorrencias/fila`.
-   - As 3 ocorrências ativas da carga aparecem ordenadas pelos minutos de bateria restantes (no PostgreSQL recém-carregado: Maria, Ana e José). No empate de minutos, o ventilador passa à frente do concentrador.
+Vale para o deploy e para a execução local: os ids são os mesmos da carga do banco (pacientes 1 = João, 2 = Maria, 3 = Pedro; ocorrência 1 = Maria; ponto 2 = Padaria Central Novo Milênio). Para o login no Swagger, veja [Como testar](#como-testar-recomendado-pelo-deploy-sem-instalar-nada).
+
+1. Login como **gestora** (`luciana.mendes@defesacivil.sp.gov.br` / `hash_luciana_adm`) e `GET /ocorrencias/fila`.
+   - As 3 ocorrências ativas da carga aparecem ordenadas pelos minutos de bateria restantes. No deploy, a carga do Oracle foi feita há dias e as três já estão com 0 minuto: o desempate pelo aparelho coloca José (ventilador) à frente de Maria (concentrador). Num PostgreSQL recém-carregado, a ordem é Maria, Ana e José.
    - Todas vêm com `priorizada: true`, com o score gravado na carga do banco.
 2. Login como **Mariana** e `GET /ocorrencias/1`: o atendimento `GERADOR_MOVEL` da carga aparece. Os `pontosNotificados` são preenchidos pelo consumidor do RabbitMQ nas ocorrências abertas pela API (passo 6).
-3. Login como **Carlos** e `GET /pacientes`: aparece só o João. Em `GET /pacientes/2` (paciente da Mariana), a resposta é **403**.
+3. Login como **Carlos** (`carlos.silva@gmail.com` / `hash_carlos123`) e `GET /pacientes`: aparece o João (e os pacientes que você cadastrar). Em `GET /pacientes/2` (paciente da Mariana), a resposta é **403**.
 4. `GET /pacientes/1/plano-contingencia`: a primeira consulta devolve `GERANDO` e publica `plano.solicitado`. Alguns segundos depois, a mesma consulta traz o plano `PRONTO`, com `origem` igual a `IA` quando há chave, ou `REGRAS` quando não há.
 5. `POST /equipamentos` com `potenciaWatts: 0` devolve **400** com os campos inválidos.
-6. `POST /ocorrencias` com `{"pacienteId": 1}` e `Idempotency-Key: 3f1c...` devolve **201**.
+6. `POST /ocorrencias` com `{"pacienteId": 1}` e um UUID qualquer em `Idempotency-Key` (ex.: `3f1c2b9e-8a4d-4c6e-9f00-1b2c3d4e5f60`) devolve **201**.
+   - Se voltar **409** logo na primeira vez, alguém já abriu uma ocorrência do João no deploy: cancele-a com `POST /ocorrencias/{id}/cancelamento` (o id está em `GET /ocorrencias?pacienteId=1&status=EM_ABERTO`) e repita.
    - Repetir com a mesma chave devolve **200** com a mesma ocorrência.
    - Repetir sem chave devolve **409**.
    - `GET /ocorrencias/{id}` mostra em `pontosNotificados` a Padaria Central Novo Milênio, ponto do bairro Jardim Paulista avisado pelo consumidor de `energia.caiu`.
-7. `PATCH /ocorrencias/{id}/bateria` com `{"minutosRestantes": 45}` devolve o score 1015 e faz o João subir na fila.
+7. `PATCH /ocorrencias/{id}/bateria` com `{"minutosRestantes": 45}` devolve o score 1015 e reposiciona o João na fila pelos 45 minutos restantes.
 8. Como gestora, `POST /ocorrencias/{id}/atendimentos` com `{"tipoSocorro":"REMOCAO_UTI","descricao":"...","pontoEnergiaId":2}` muda o status para `EM_ATENDIMENTO`.
 9. `POST /ocorrencias/{id}/encerramento` devolve 200. Encerrar de novo devolve **409**.
 10. Login como **Roberto** e `POST /ocorrencias` com `{"pacienteId": 3}` devolve **422** (nenhum aparelho de suporte à vida).
 11. Como Carlos, `GET /ocorrencias/fila` devolve **403**.
-12. No painel do RabbitMQ (http://localhost:15672), em *Queues*, aparecem as filas `luzvital.energia-caiu` e `luzvital.plano-contingencia` com consumidores.
+12. RabbitMQ: no deploy, a prova do processamento assíncrono são os `pontosNotificados` do passo 6 (consumidor de `energia.caiu`) e o plano que passa de `GERANDO` para `PRONTO` no passo 4 (consumidor de `plano.solicitado`). Rodando localmente, o painel http://localhost:15672 (guest / guest) mostra em *Queues* as filas `luzvital.energia-caiu` e `luzvital.plano-contingencia` com consumidores.
 
 ## Como cada requisito foi atendido
 
