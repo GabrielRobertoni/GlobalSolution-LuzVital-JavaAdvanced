@@ -8,7 +8,7 @@ O Luz Vital cadastra quem depende de aparelhos elétricos para viver (ventilador
 |---|---|
 | Repositório | https://github.com/GabrielRobertoni/GlobalSolution-LuzVital-JavaAdvanced |
 | Vídeo pitch | `<link do vídeo>` |
-| Deploy | `<link do deploy, se houver>` |
+| Deploy (Swagger) | https://luz-vital-api.onrender.com/swagger-ui.html |
 | **Requisito 5 (arquitetura distribuída)** | **Opção A: RabbitMQ**, com evento publicado e consumido de forma assíncrona |
 
 > **O Luz Vital não é serviço de emergência.** Não substitui o SAMU (192), os Bombeiros (193) nem o canal da distribuidora, e não dá orientação clínica. Todas as respostas de ocorrência e de plano trazem esse aviso.
@@ -129,6 +129,23 @@ Os pacotes e gatilhos do banco continuam valendo sobre os dados gravados pela AP
 ## Como rodar
 
 Com um PostgreSQL vazio, o primeiro start cria as tabelas e carrega **os mesmos dados do script Oracle da disciplina**: 5 usuários, 5 pacientes, 5 equipamentos, 5 pontos de energia, 5 ocorrências e 5 atendimentos.
+
+### Deploy no Render (para testar sem instalar nada)
+
+A API está publicada em **https://luz-vital-api.onrender.com/swagger-ui.html**, ligada aos mesmos serviços usados no desenvolvimento:
+
+| Peça | Serviço |
+|---|---|
+| API Java | Render (plano gratuito, container Docker deste repositório) |
+| Banco | Oracle 19c da FIAP, só com as tabelas `T_GS_*` do script da equipe de banco |
+| Mensageria | RabbitMQ gerenciado no CloudAMQP (plano gratuito), conexão `amqps://` |
+| IA generativa | Gemini, via Spring AI |
+
+**Por que o deploy:** assim o professor e o app mobile testam a mesma API, com os mesmos dados, sem instalar JDK, PostgreSQL ou RabbitMQ. A configuração está em [`render.yaml`](render.yaml). As senhas e chaves (Oracle, CloudAMQP, Gemini) ficam só no painel do Render, nunca no repositório. A chave do JWT é gerada pelo próprio Render.
+
+> **Primeiro acesso lento:** no plano gratuito, o Render desliga a API depois de 15 minutos sem uso. A primeira chamada depois disso pode levar de 1 a 3 minutos enquanto ela liga de novo. As seguintes são rápidas.
+
+Para testar: abra o Swagger, faça `POST /auth/login` com um dos [usuários de teste](#usuários-de-teste), clique em **Authorize** e cole o token.
 
 ### Opção 1: Docker (recomendado)
 
@@ -296,7 +313,7 @@ Vale para todos os erros: 400, 401, 403, 404, 409, 422, 503 e 500.
 
 **App React Native (Axios)**
 - Cabeçalho: `Authorization: Bearer <token>` (o token vem de `/auth/login` ou de `/auth/cadastro`).
-- URL base: no emulador Android use `http://10.0.2.2:8080`; no celular físico, use o IP da máquina na rede (`http://192.168.x.x:8080`) ou o deploy.
+- URL base: use o deploy, `https://luz-vital-api.onrender.com`. Rodando a API localmente, no emulador Android use `http://10.0.2.2:8080`; no celular físico, use o IP da máquina na rede (`http://192.168.x.x:8080`).
 - Paciente: `{nome, cpf, endereco, bairro, cidade, uf, cep, telefone}`.
 - Aparelho: `{pacienteId, tipoAparelho, fabricante, modelo, potenciaWatts, autonomiaMinutos, suporteVida, fonteReserva}`.
 - "Estou sem luz": gere um UUID por toque, guarde-o na fila offline e reenvie **com a mesma** `Idempotency-Key`. Assim o reenvio nunca duplica a ocorrência.
