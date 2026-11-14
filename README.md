@@ -15,13 +15,13 @@ O Luz Vital cadastra quem depende de aparelhos elétricos para viver (ventilador
 
 ## Equipe
 
-| Nome | RM |
-|---|---|
-| Hebert Lopes do Santos | 563192 |
-| Nicolas Monteiro Ramiro | 562380 |
-| Marcus Vinícius Vila Nova da Silva | 558771 |
-| Bruno Ferreira | 563489 |
-| Gabriel Robertoni Padilha | 566293 |
+| Nome | RM | Turma |
+|---|---|---|
+| Hebert Lopes do Santos | 563192 | 2TDSR |
+| Nicolas Monteiro Ramiro | 562380 | 2TDSR |
+| Marcus Vinícius Vila Nova da Silva | 558771 | 2TDSR |
+| Bruno Ferreira | 563489 | 2TDSR |
+| Gabriel Robertoni Padilha | 566293 | 2TDSR |
 
 ---
 
