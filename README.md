@@ -66,19 +66,7 @@ Também dá para rodar no próprio computador, com Docker ou Maven (veja [Como r
 
 ## Arquitetura
 
-```mermaid
-flowchart LR
-    APP[App React Native<br/>cuidador e gestor] -- JWT --> API[API Java<br/>Spring Boot]
-    NET[API .NET<br/>canal de emergência] -. mesmo JWT .-> API
-    API -- JPA --> DB[(Oracle T_GS_* /<br/>PostgreSQL)]
-    API -- "publica energia.caiu<br/>e plano.solicitado" --> MQ{{RabbitMQ<br/>exchange luzvital.eventos}}
-    MQ -- luzvital.energia-caiu --> C1[Consumidor:<br/>prioridade + pontos do bairro]
-    MQ -- luzvital.plano-contingencia --> C2[Consumidor:<br/>plano com Spring AI]
-    C2 -- ChatClient --> LLM[LLM<br/>Gemini / OpenAI]
-    API -- "foto da etiqueta<br/>(multimodal)" --> LLM
-    C1 --> DB
-    C2 --> DB
-```
+![Arquitetura do Luz Vital](docs/arquitetura.png)
 
 ### O fluxo do "Estou sem luz"
 
@@ -122,14 +110,7 @@ A API usa as tabelas do script da disciplina de banco (`GSBancoOracle.sql`) do j
 | `T_GS_OCORRENCIA` | `Ocorrencia` | pertence a um paciente e tem vários atendimentos |
 | `T_GS_ATENDIMENTO` | `Atendimento` | pertence a uma ocorrência e pode apontar um ponto de energia |
 
-```mermaid
-erDiagram
-    T_GS_USUARIO ||--o{ T_GS_PACIENTE : "cuida de"
-    T_GS_PACIENTE ||--o{ T_GS_EQUIPAMENTO : "usa"
-    T_GS_PACIENTE ||--o{ T_GS_OCORRENCIA : "abre"
-    T_GS_OCORRENCIA ||--o{ T_GS_ATENDIMENTO : "recebe"
-    T_GS_PONTO_ENERGIA |o--o{ T_GS_ATENDIMENTO : "é acionado"
-```
+![Modelo de dados: tabelas T_GS_* e relacionamentos](docs/modelo-dados.png)
 
 Não criamos nenhuma tabela a mais, e a API não grava nem altera nada quando sobe. Os gatilhos do banco continuam funcionando sobre o que a API grava:
 

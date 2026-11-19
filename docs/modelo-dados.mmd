@@ -1,0 +1,6 @@
+erDiagram
+    T_GS_USUARIO ||--o{ T_GS_PACIENTE : "cuida de"
+    T_GS_PACIENTE ||--o{ T_GS_EQUIPAMENTO : "usa"
+    T_GS_PACIENTE ||--o{ T_GS_OCORRENCIA : "abre"
+    T_GS_OCORRENCIA ||--o{ T_GS_ATENDIMENTO : "recebe"
+    T_GS_PONTO_ENERGIA |o--o{ T_GS_ATENDIMENTO : "é acionado"
