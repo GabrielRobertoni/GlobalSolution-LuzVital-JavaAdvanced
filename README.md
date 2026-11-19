@@ -9,7 +9,7 @@ Este repositório tem a API Java do projeto: cadastros, login com papéis, a par
 | | |
 |---|---|
 | Repositório | https://github.com/GabrielRobertoni/GlobalSolution-LuzVital-JavaAdvanced |
-| Vídeo pitch | `<link do vídeo>` |
+| Vídeo pitch | https://youtu.be/ZTZkEZEHqWA |
 | Deploy (Swagger) | https://luz-vital-api.onrender.com/swagger-ui.html |
 | Requisito 5 (arquitetura distribuída) | Opção A: RabbitMQ, com evento publicado e consumido de forma assíncrona |
 
