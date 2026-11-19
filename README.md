@@ -131,17 +131,7 @@ erDiagram
     T_GS_PONTO_ENERGIA |o--o{ T_GS_ATENDIMENTO : "é acionado"
 ```
 
-Não criamos nenhuma tabela a mais, e a API não grava nem altera nada quando sobe. Algumas informações só fazem sentido para o backend e não têm coluna no modelo do banco, então ficam na memória da API:
-
-| O que fica em memória | Para que serve | Se a API reiniciar |
-|---|---|---|
-| Chave de idempotência do app | O "Estou sem luz" reenviado devolve a mesma ocorrência | A regra de uma ocorrência ativa por paciente continua evitando duplicidade |
-| Horário em que a bateria foi informada | Contagem regressiva depois de um `PATCH /bateria` | A contagem volta a partir do `dh_inicio` |
-| Avisos aos pontos de energia | Resultado do consumidor de `energia.caiu` | As próximas ocorrências geram novos avisos |
-| Plano de contingência | Resposta da IA (o app guarda uma cópia no celular para usar sem internet) | É gerado de novo na próxima consulta |
-| Tokens revogados no logout | Impedir o uso do token depois do logout | Com `JWT_SECRET` vazio, nenhum token antigo vale mais. Com `JWT_SECRET` fixo, um token revogado volta a valer até expirar (8 h por padrão, em `JWT_EXPIRACAO`) |
-
-Os gatilhos do banco continuam funcionando sobre o que a API grava:
+Não criamos nenhuma tabela a mais, e a API não grava nem altera nada quando sobe. Os gatilhos do banco continuam funcionando sobre o que a API grava:
 
 - `TRG_T_GS_AUDITORIA_OCORRENCIA` registra cada abertura, atualização e encerramento.
 - `TRG_T_GS_UPDATE_BATERIA` recalcula o score quando a bateria muda. A entidade usa `@DynamicUpdate`, então o gatilho só dispara quando `qt_bateria_min` muda de fato.
